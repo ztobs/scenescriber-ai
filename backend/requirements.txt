@@ -1,11 +1,15 @@
 # Core dependencies
 opencv-python>=4.8.0
 numpy>=1.24.0
-pyscenedetect>=0.6.0
 ffmpeg-python>=0.2.0
 Pillow>=10.0.0
 requests>=2.31.0
 python-dotenv>=1.0.0
+
+# Scene detection alternatives (PySceneDetect may not work with Python 3.12+)
+# Using scikit-video as alternative for scene detection
+scikit-video>=1.1.11
+scikit-image>=0.22.0
 
 # Web framework
 fastapi>=0.104.0

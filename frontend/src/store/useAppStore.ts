@@ -1,7 +1,7 @@
 /** Zustand store for application state */
 
 import { create } from 'zustand';
-import type { AppState, UploadResponse, Scene } from '../types';
+import type { AppState } from '../types';
 import { videoApi } from '../utils/api';
 
 const initialState: Omit<AppState, 'setState' | 'reset'> = {

@@ -38,32 +38,56 @@ video-scene-tool/
 
 ### Prerequisites
 
-- Python 3.9+
+- Python 3.9+ (tested with 3.12)
 - Node.js 18+
-- FFmpeg (for video processing)
+- FFmpeg (for video processing) - **REQUIRED**
 - AI API keys (OpenAI, Claude, or Gemini) - optional for testing
 
-### Backend Setup
+### Easy Setup (Recommended)
+
+```bash
+# Make the setup script executable
+chmod +x setup.sh
+
+# Run the setup script
+./setup.sh
+```
+
+### Manual Setup
+
+#### Backend Setup
 
 ```bash
 cd backend
 
 # Create virtual environment
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install dependencies
-pip install -r requirements.txt
+# Install minimal dependencies (no OpenCV/PySceneDetect)
+pip install --upgrade pip
+pip install -r requirements-minimal.txt
 
-# Install development dependencies
-pip install -r requirements-dev.txt
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your API keys
+# Create necessary directories
+mkdir -p uploads exports
 
 # Run the backend server
 uvicorn src.main:app --reload --port 8000
+```
+
+#### Advanced Backend Setup (with OpenCV)
+
+If you want advanced scene detection with OpenCV:
+
+```bash
+cd backend
+source venv/bin/activate
+
+# Try installing OpenCV (may not work on all systems)
+pip install opencv-python scikit-image scikit-video
+
+# Or use the full requirements (may have compatibility issues)
+# pip install -r requirements.txt
 ```
 
 ### Frontend Setup
@@ -75,6 +99,37 @@ cd frontend
 npm install
 
 # Start development server
+npm run dev
+```
+
+### Verify FFmpeg Installation
+
+```bash
+# Check if ffmpeg is installed
+ffmpeg -version
+
+# Check if ffprobe is installed
+ffprobe -version
+```
+
+If FFmpeg is not installed:
+
+- **Ubuntu/Debian**: `sudo apt install ffmpeg`
+- **macOS**: `brew install ffmpeg`
+- **Windows**: Download from [ffmpeg.org](https://ffmpeg.org/download.html)
+
+### Start the Application
+
+1. **Start Backend** (in one terminal):
+```bash
+cd backend
+source venv/bin/activate
+uvicorn src.main:app --reload --port 8000
+```
+
+2. **Start Frontend** (in another terminal):
+```bash
+cd frontend
 npm run dev
 ```
 
@@ -221,6 +276,53 @@ MIT License - see LICENSE file for details.
 - [FastAPI](https://fastapi.tiangolo.com/) for backend framework
 - [React](https://reactjs.org/) and [Material-UI](https://mui.com/) for frontend
 
+## 🔧 Troubleshooting
+
+### Common Issues
+
+1. **"No matching distribution found for pyscenedetect"**
+   - Use `requirements-minimal.txt` instead of `requirements.txt`
+   - The simple scene detector uses FFmpeg instead of PySceneDetect
+
+2. **FFmpeg not found**
+   - Install FFmpeg using your package manager
+   - Ensure `ffmpeg` and `ffprobe` are in your PATH
+
+3. **OpenCV installation fails**
+   - Use the simple scene detector (default)
+   - Or try: `pip install opencv-python-headless`
+
+4. **Python version issues**
+   - The project works with Python 3.9+
+   - For Python 3.12+, use `requirements-minimal.txt`
+
+### Scene Detection Modes
+
+The application has two scene detection modes:
+
+1. **Simple Mode** (default): Uses FFmpeg's built-in scene detection
+   - Works without OpenCV
+   - Requires FFmpeg installed
+   - Good for most use cases
+
+2. **Advanced Mode**: Uses OpenCV and scikit-image
+   - More accurate scene detection
+   - Requires OpenCV installation
+   - Enable by installing: `pip install opencv-python scikit-image`
+
+### Testing the Installation
+
+```bash
+# Test backend
+cd backend
+source venv/bin/activate
+python -c "from src.main import app; print('Backend imports OK')"
+
+# Test frontend
+cd frontend
+npm run type-check
+```
+
 ## 📞 Support
 
 For issues and feature requests, please use the GitHub Issues page.
@@ -228,3 +330,13 @@ For issues and feature requests, please use the GitHub Issues page.
 ---
 
 **SceneScriber AI** - Making video editing smarter, one scene at a time. 🎬
+
+### Quick Test
+
+After installation, try uploading a short video (under 100MB) to test the workflow. The application will:
+1. Upload your video
+2. Detect scenes using FFmpeg
+3. Generate AI descriptions (if API keys are configured)
+4. Export SRT file for video editing
+
+**Note**: AI features require API keys. Without them, you'll get placeholder descriptions that you can edit manually.

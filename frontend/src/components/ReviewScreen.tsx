@@ -250,7 +250,7 @@ export const ReviewScreen: React.FC = () => {
                       Keyframes ({selectedScene.keyframes.length})
                     </Typography>
                     <Grid container spacing={2}>
-                      {selectedScene.keyframes.map((keyframe, index) => (
+                      {selectedScene.keyframes.map((_, index) => (
                         <Grid item xs={4} key={index}>
                           <Paper
                             variant="outlined"
@@ -316,7 +316,7 @@ export const ReviewScreen: React.FC = () => {
             <>
               {selectedScene.scene_id}
               {'\n'}
-              {formatTimestamp(selectedScene.start_time).replace('.', ',')} -->{' '}
+              {formatTimestamp(selectedScene.start_time).replace('.', ',')} {'-->'} {' '}
               {formatTimestamp(selectedScene.end_time).replace('.', ',')}
               {'\n'}
               {selectedScene.description}

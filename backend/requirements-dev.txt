@@ -12,3 +12,6 @@ pre-commit>=3.5.0
 # Testing utilities
 httpx>=0.25.0
 pytest-mock>=3.11.0
+
+# For testing with mocks
+pillow>=10.0.0

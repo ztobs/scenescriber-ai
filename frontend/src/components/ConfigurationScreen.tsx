@@ -21,7 +21,6 @@ import {
   Settings as SettingsIcon,
   Lightbulb as ThemeIcon,
   Speed as SpeedIcon,
-  Timer as TimerIcon,
   SmartToy as AiIcon,
   Description as DescriptionIcon,
 } from '@mui/icons-material';

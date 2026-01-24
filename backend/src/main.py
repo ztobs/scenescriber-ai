@@ -10,7 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from .models import AnalysisRequest, AnalysisResponse, Scene, ProjectConfig
-from .scene_detector import SceneDetector
+try:
+    from .scene_detector import SceneDetector
+    SCENE_DETECTOR_AVAILABLE = True
+except ImportError:
+    from .scene_detector_simple import SimpleSceneDetector as SceneDetector
+    SCENE_DETECTOR_AVAILABLE = False
+
 from .ai_describer import AIDescriber
 from .srt_exporter import SRTExporter
 
@@ -130,7 +136,8 @@ async def analyze_video(
     logger.info(f"Starting analysis for video: {video_path}")
     
     # Validate video file exists
-    if not Path(video_path).exists():
+    video_path_obj = Path(video_path)
+    if not video_path_obj.exists():
         raise HTTPException(status_code=404, detail="Video file not found")
     
     # Create job ID
@@ -193,7 +200,7 @@ def process_video_analysis(
         processing_jobs[job_id]["message"] = f"Detected {len(scenes)} scenes. Extracting keyframes..."
         
         # Step 2: Extract keyframes
-        scenes = detector.extract_keyframes(scenes, frames_per_scene=3)
+        scenes = detector.extract_keyframes(video_path, scenes, frames_per_scene=3)
         
         # Update progress
         processing_jobs[job_id]["progress"] = 60

@@ -21,10 +21,9 @@ import {
   SmartToy as AiIcon,
 } from '@mui/icons-material';
 import { useAppStore } from '../store/useAppStore';
-import { formatDuration } from '../utils/time';
 
 export const ProcessingScreen: React.FC = () => {
-  const { jobStatus, pollJobStatus, loading, error } = useAppStore();
+  const { jobStatus, pollJobStatus, error } = useAppStore();
 
   // Poll for status updates
   useEffect(() => {
