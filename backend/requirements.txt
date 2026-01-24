@@ -1,0 +1,21 @@
+# Core dependencies
+opencv-python>=4.8.0
+numpy>=1.24.0
+pyscenedetect>=0.6.0
+ffmpeg-python>=0.2.0
+Pillow>=10.0.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# Web framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# Database
+sqlite3
+
+# Optional AI providers (choose one or more)
+openai>=1.0.0  # For GPT-4 Vision
+anthropic>=0.7.0  # For Claude 3
+google-generativeai>=0.3.0  # For Gemini
