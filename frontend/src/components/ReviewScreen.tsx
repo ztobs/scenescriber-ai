@@ -26,8 +26,6 @@ import {
   PlayArrow as PlayIcon,
   Pause as PauseIcon,
   Download as DownloadIcon,
-  NavigateBefore as BackIcon,
-  NavigateNext as NextIcon,
   SkipPrevious as SkipPreviousIcon,
   SkipNext as SkipNextIcon,
 } from '@mui/icons-material';

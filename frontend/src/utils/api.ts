@@ -10,7 +10,7 @@ import type {
   AppConfig,
 } from '../types';
 
-const API_BASE_URL = '/api';
+export const API_BASE_URL = '/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -42,7 +42,10 @@ export const videoApi = {
 
   /** Start video analysis */
   analyzeVideo: async (request: AnalysisRequest): Promise<AnalysisResponse> => {
-    const response = await api.post('/analyze', request);
+    // Send as query parameters for POST request
+    const response = await api.post('/analyze', null, {
+      params: request
+    });
     return response.data;
   },
 

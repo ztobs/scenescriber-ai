@@ -1,7 +1,7 @@
 /** Main App component for Video Scene AI Analyzer */
 
 import React, { useEffect } from 'react';
-import { Container, Box, Typography, Alert, LinearProgress } from '@mui/material';
+import { Container, Box, Typography, Alert, LinearProgress, Button } from '@mui/material';
 import { useAppStore } from './store/useAppStore';
 import { UploadScreen } from './components/UploadScreen';
 import { ConfigurationScreen } from './components/ConfigurationScreen';
@@ -17,6 +17,21 @@ const App: React.FC = () => {
   }, [loadConfig]);
 
   const renderStep = () => {
+    // Show loading state while config is being loaded
+    if (loading && !config) {
+      return (
+        <Box sx={{ textAlign: 'center', py: 8 }}>
+          <Typography variant="h6" gutterBottom>
+            Loading SceneScriber AI...
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Connecting to backend server
+          </Typography>
+          <LinearProgress sx={{ maxWidth: 400, mx: 'auto' }} />
+        </Box>
+      );
+    }
+
     switch (currentStep) {
       case 'upload':
         return <UploadScreen />;
@@ -64,20 +79,32 @@ const App: React.FC = () => {
         </Typography>
       </Box>
 
-      {loading && (
-        <Box sx={{ mb: 3 }}>
-          <LinearProgress />
-          <Typography variant="body2" align="center" sx={{ mt: 1 }}>
-            Processing...
-          </Typography>
-        </Box>
-      )}
+       {loading && config && (
+         <Box sx={{ mb: 3 }}>
+           <LinearProgress />
+           <Typography variant="body2" align="center" sx={{ mt: 1 }}>
+             Processing...
+           </Typography>
+         </Box>
+       )}
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
+       {error && (
+         <Alert 
+           severity="error" 
+           sx={{ mb: 3 }}
+           action={
+             <Button 
+               color="inherit" 
+               size="small" 
+               onClick={() => loadConfig()}
+             >
+               Retry
+             </Button>
+           }
+         >
+           {error}
+         </Alert>
+       )}
 
       {renderStep()}
 

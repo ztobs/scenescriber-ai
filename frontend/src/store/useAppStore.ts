@@ -44,7 +44,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
-      const config = await videoApi.getConfig();
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Configuration load timeout')), 10000);
+      });
+      
+      const config = await Promise.race([videoApi.getConfig(), timeoutPromise]) as any;
       set({
         config,
         detectionSensitivity: config.default_settings.detection_sensitivity,
@@ -54,9 +59,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
         loading: false,
       });
     } catch (error) {
+      console.error('Failed to load config:', error);
       set({
-        error: error instanceof Error ? error.message : 'Failed to load configuration',
+        error: error instanceof Error ? error.message : 'Failed to load configuration. Please check if backend is running.',
         loading: false,
+        config: null,
       });
     }
   },
