@@ -1,6 +1,6 @@
 /** Review and edit screen component */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -17,24 +17,34 @@ import {
   List,
   ListItem,
   ListItemText,
+  Slider,
 } from '@mui/material';
 import {
   Edit as EditIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
   PlayArrow as PlayIcon,
+  Pause as PauseIcon,
   Download as DownloadIcon,
   NavigateBefore as BackIcon,
   NavigateNext as NextIcon,
+  SkipPrevious as SkipPreviousIcon,
+  SkipNext as SkipNextIcon,
 } from '@mui/icons-material';
+import ReactPlayer from 'react-player';
 import { useAppStore } from '../store/useAppStore';
 import { formatTimestamp } from '../utils/time';
+import { API_BASE_URL } from '../utils/api';
 
 export const ReviewScreen: React.FC = () => {
-  const { scenes, updateSceneDescription, exportSrt, loading, setState } = useAppStore();
+  const { scenes, updateSceneDescription, exportSrt, loading, setState, uploadedFile } = useAppStore();
   const [editingSceneId, setEditingSceneId] = useState<number | null>(null);
   const [editDescription, setEditDescription] = useState('');
   const [selectedSceneIndex, setSelectedSceneIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const playerRef = useRef<any>(null);
 
   const handleEditClick = (sceneId: number, currentDescription: string) => {
     setEditingSceneId(sceneId);
@@ -56,6 +66,39 @@ export const ReviewScreen: React.FC = () => {
 
   const handleExportSrt = () => {
     exportSrt();
+  };
+
+  const handlePlayPause = () => {
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleSeekToScene = () => {
+    if (playerRef.current && selectedScene) {
+      playerRef.current.seekTo(selectedScene.start_time, 'seconds');
+      setIsPlaying(true);
+    }
+  };
+
+  const handleProgress = (state: { playedSeconds: number }) => {
+    setCurrentTime(state.playedSeconds);
+  };
+
+  const handleDuration = (dur: number) => {
+    setDuration(dur);
+  };
+
+  const handleSliderChange = (_event: Event, newValue: number | number[]) => {
+    const time = Array.isArray(newValue) ? newValue[0] : newValue;
+    setCurrentTime(time);
+    if (playerRef.current) {
+      playerRef.current.seekTo(time, 'seconds');
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const selectedScene = scenes[selectedSceneIndex];
@@ -153,39 +196,144 @@ export const ReviewScreen: React.FC = () => {
           {selectedScene && (
             <Card variant="outlined">
               <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                  <Box>
-                    <Typography variant="h5">
-                      Scene {selectedScene.scene_id}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {formatTimestamp(selectedScene.start_time)} → {formatTimestamp(selectedScene.end_time)}
-                      {' • '}
-                      Duration: {selectedScene.duration.toFixed(1)}s
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <IconButton
-                      size="small"
-                      disabled={selectedSceneIndex === 0}
-                      onClick={() => setSelectedSceneIndex(selectedSceneIndex - 1)}
-                    >
-                      <BackIcon />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      disabled={selectedSceneIndex === scenes.length - 1}
-                      onClick={() => setSelectedSceneIndex(selectedSceneIndex + 1)}
-                    >
-                      <NextIcon />
-                    </IconButton>
-                  </Box>
-                </Box>
+                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                   <Box>
+                     <Typography variant="h5">
+                       Scene {selectedScene.scene_id}
+                     </Typography>
+                     <Typography variant="body2" color="text.secondary">
+                       {formatTimestamp(selectedScene.start_time)} → {formatTimestamp(selectedScene.end_time)}
+                       {' • '}
+                       Duration: {selectedScene.duration.toFixed(1)}s
+                     </Typography>
+                   </Box>
+                   <Box sx={{ display: 'flex', gap: 1 }}>
+                     <IconButton
+                       size="small"
+                       disabled={selectedSceneIndex === 0}
+                       onClick={() => setSelectedSceneIndex(selectedSceneIndex - 1)}
+                       title="Previous scene"
+                     >
+                       <SkipPreviousIcon />
+                     </IconButton>
+                     <IconButton
+                       size="small"
+                       disabled={selectedSceneIndex === scenes.length - 1}
+                       onClick={() => setSelectedSceneIndex(selectedSceneIndex + 1)}
+                       title="Next scene"
+                     >
+                       <SkipNextIcon />
+                     </IconButton>
+                   </Box>
+                 </Box>
 
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="subtitle2" gutterBottom color="text.secondary">
-                    AI-Generated Description
-                  </Typography>
+                 {/* Video Player Section */}
+                 {uploadedFile && (
+                   <Box sx={{ mb: 4 }}>
+                     <Typography variant="subtitle2" gutterBottom color="text.secondary">
+                       Video Preview
+                     </Typography>
+                     <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+                       <Box sx={{ position: 'relative', paddingTop: '56.25%', bgcolor: 'black', borderRadius: 1 }}>
+                         <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+                           <ReactPlayer
+                             ref={playerRef}
+                             url={`${API_BASE_URL}/video/${uploadedFile.file_id}`}
+                             playing={isPlaying}
+                             controls={true}
+                             width="100%"
+                             height="100%"
+                             onProgress={handleProgress}
+                             onDuration={handleDuration}
+                             config={{
+                               file: {
+                                 attributes: {
+                                   controlsList: 'nodownload',
+                                 },
+                               },
+                             }}
+                           />
+                         </Box>
+                       </Box>
+                       
+                       {/* Custom Controls */}
+                       <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                         <IconButton onClick={handlePlayPause} size="small">
+                           {isPlaying ? <PauseIcon /> : <PlayIcon />}
+                         </IconButton>
+                         <Typography variant="body2" color="text.secondary" sx={{ minWidth: 40 }}>
+                           {formatTime(currentTime)}
+                         </Typography>
+                         <Slider
+                           size="small"
+                           value={currentTime}
+                           min={0}
+                           max={duration || 100}
+                           onChange={handleSliderChange}
+                           sx={{ flex: 1 }}
+                           aria-label="Video timeline"
+                         />
+                         <Typography variant="body2" color="text.secondary" sx={{ minWidth: 40 }}>
+                           {formatTime(duration)}
+                         </Typography>
+                         <Button
+                           variant="outlined"
+                           size="small"
+                           startIcon={<PlayIcon />}
+                           onClick={handleSeekToScene}
+                           disabled={!selectedScene}
+                         >
+                           Play Scene
+                         </Button>
+                       </Box>
+                       
+                       {/* Scene Timeline */}
+                       {scenes.length > 0 && (
+                         <Box sx={{ mt: 2 }}>
+                           <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                             Scene Markers
+                           </Typography>
+                           <Box sx={{ position: 'relative', height: 24, bgcolor: 'grey.100', borderRadius: 1 }}>
+                             {scenes.map((scene, index) => {
+                               const position = (scene.start_time / (duration || 1)) * 100;
+                               const isSelected = index === selectedSceneIndex;
+                               return (
+                                 <Box
+                                   key={scene.scene_id}
+                                   sx={{
+                                     position: 'absolute',
+                                     left: `${position}%`,
+                                     top: 0,
+                                     bottom: 0,
+                                     width: 4,
+                                     bgcolor: isSelected ? 'primary.main' : 'grey.400',
+                                     cursor: 'pointer',
+                                     '&:hover': {
+                                       bgcolor: isSelected ? 'primary.dark' : 'grey.600',
+                                     },
+                                   }}
+                                   onClick={() => {
+                                     setSelectedSceneIndex(index);
+                                     if (playerRef.current) {
+                                       playerRef.current.seekTo(scene.start_time, 'seconds');
+                                       setIsPlaying(true);
+                                     }
+                                   }}
+                                   title={`Scene ${scene.scene_id}: ${formatTimestamp(scene.start_time)}`}
+                                 />
+                               );
+                             })}
+                           </Box>
+                         </Box>
+                       )}
+                     </Paper>
+                   </Box>
+                 )}
+
+                 <Box sx={{ mb: 3 }}>
+                   <Typography variant="subtitle2" gutterBottom color="text.secondary">
+                     AI-Generated Description
+                   </Typography>
                   {editingSceneId === selectedScene.scene_id ? (
                     <Box>
                       <TextField
@@ -281,16 +429,14 @@ export const ReviewScreen: React.FC = () => {
                     Back to Configuration
                   </Button>
                   <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Button
-                      variant="outlined"
-                      startIcon={<PlayIcon />}
-                      onClick={() => {
-                        // In a real app, this would seek to the scene in a video player
-                        alert(`Would seek to ${formatTimestamp(selectedScene.start_time)}`);
-                      }}
-                    >
-                      Play Scene
-                    </Button>
+                     <Button
+                       variant="outlined"
+                       startIcon={<PlayIcon />}
+                       onClick={handleSeekToScene}
+                       disabled={!selectedScene || !uploadedFile}
+                     >
+                       Play Scene
+                     </Button>
                     <Button
                       variant="contained"
                       startIcon={<DownloadIcon />}

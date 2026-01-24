@@ -182,6 +182,37 @@ async def upload_video(file: UploadFile = File(...)):
     }
 
 
+@app.get("/api/video/{file_id}")
+async def get_video(file_id: str):
+    """Serve uploaded video file for playback.
+    
+    Args:
+        file_id: File ID returned from upload endpoint
+        
+    Returns:
+        Video file stream
+    """
+    # Find the video file by file_id
+    upload_dir = Path("uploads")
+    video_files = list(upload_dir.glob(f"{file_id}.*"))
+    
+    if not video_files:
+        raise HTTPException(status_code=404, detail="Video file not found")
+    
+    video_path = video_files[0]
+    
+    # Check if file exists
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Video file not found")
+    
+    # Return file with appropriate media type
+    return FileResponse(
+        path=video_path,
+        media_type="video/mp4",
+        filename=video_path.name
+    )
+
+
 @app.post("/api/analyze")
 async def analyze_video(
     background_tasks: BackgroundTasks,

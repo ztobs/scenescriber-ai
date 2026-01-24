@@ -89,6 +89,11 @@ export const videoApi = {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   },
+
+  /** Get video URL */
+  getVideoUrl: (fileId: string): string => {
+    return `${API_BASE_URL}/video/${fileId}`;
+  },
 };
 
 export default api;
