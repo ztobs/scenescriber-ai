@@ -23,7 +23,14 @@ class AIDescriber:
             api_key: API key for the selected model
         """
         self.model = model
-        self.api_key = api_key or os.getenv(f"{model.upper()}_API_KEY")
+        
+        # Handle gemini/google naming inconsistency
+        env_var_name = f"{model.upper()}_API_KEY"
+        if model == "gemini":
+            # Try GEMINI_API_KEY first, then GOOGLE_API_KEY as fallback
+            self.api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        else:
+            self.api_key = api_key or os.getenv(env_var_name)
         
         if not self.api_key and model != "llava":
             logger.warning(f"No API key provided for {model}. Some features may not work.")
@@ -228,7 +235,7 @@ class AIDescriber:
         }
 
         payload = {
-            "model": "gpt-4-vision-preview",
+            "model": "gpt-4o",
             "messages": messages,
             "max_tokens": self._get_max_tokens(description_length)
         }
@@ -347,25 +354,36 @@ class AIDescriber:
             "detailed": "Provide a detailed description (40-60 words)."
         }
         
-        base_prompt = f"""Analyze these video frames from a single scene and describe what is happening.
-        
-        {length_instructions.get(description_length, length_instructions['medium'])}
-        
-        Focus on:
-        1. Main objects and people visible
-        2. Actions taking place
-        3. Setting and environment
-        4. Notable visual details
-        
-        Provide a clear, factual description suitable for video editing."""
+        base_prompt = f"""You are a professional video editor's assistant. Analyze these keyframes from a video scene and provide an ACCURATE, SPECIFIC description.
+
+{length_instructions.get(description_length, length_instructions['medium'])}
+
+CRITICAL INSTRUCTIONS:
+- Be SPECIFIC and CONCRETE (not generic like "person working" or "using tools")
+- Describe WHAT specifically is happening (not general activities)
+- Include specific objects, tools, actions, and results visible
+- Describe the SEQUENCE of actions if multiple frames show progression
+- Note colors, positions, materials when relevant
+- Avoid vague descriptions - be precise
+
+Focus on:
+1. Specific objects, tools, or equipment (brand, type, color if visible)
+2. Specific actions being performed (verb + object)
+3. Location, setting, and spatial layout
+4. Any visible results or changes between frames
+5. People's positioning and hand/body movements
+
+Provide a clear, factual, specific description suitable for video editing."""
         
         if theme:
             base_prompt += f"""
-            
-            Important context: This video is about "{theme}". 
-            Please tailor your description to focus on elements relevant to this theme.
-            For example, if this is a DIY/build video, focus on tools, assembly steps, and progress indicators.
-            If this is a cooking video, focus on ingredients, cooking techniques, and preparation steps."""
+
+CONTEXT: This video is about: "{theme}"
+Use this context to interpret what you're seeing. Focus on details relevant to the theme.
+For DIY/builds: What is being built, what tools are used, what is the progression?
+For cooking: What ingredients, techniques, equipment, and cooking stages?
+For tutorials: What is being demonstrated, what steps are visible?
+For reviews: What product features or qualities are shown?"""
         
         return base_prompt
 

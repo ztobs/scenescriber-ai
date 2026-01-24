@@ -281,6 +281,7 @@ class SimpleSceneDetector:
                     # Extract frame using ffmpeg
                     cmd = [
                         'ffmpeg',
+                        '-y',  # Overwrite output file
                         '-ss', str(frame_time),  # Seek to time
                         '-i', video_path,
                         '-vframes', '1',  # Extract 1 frame
