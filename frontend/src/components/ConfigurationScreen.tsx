@@ -44,6 +44,9 @@ export const ConfigurationScreen: React.FC = () => {
     minSceneDuration,
     aiModel,
     descriptionLength,
+    videoStartTime,
+    videoEndTime,
+    videoDuration,
     config,
     setState,
     startAnalysis,
@@ -73,13 +76,57 @@ export const ConfigurationScreen: React.FC = () => {
         </Box>
       </Box>
 
-      {uploadedFile && (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          Analyzing: <strong>{uploadedFile.filename}</strong>
-        </Alert>
-      )}
+       {uploadedFile && (
+         <Alert severity="info" sx={{ mb: 3 }}>
+           Analyzing: <strong>{uploadedFile.filename}</strong>
+         </Alert>
+       )}
 
-      <Grid container spacing={4}>
+       {/* Video Range Selector */}
+       <Card variant="outlined" sx={{ mb: 4, p: 2 }}>
+         <CardContent>
+           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+             <SpeedIcon color="primary" />
+             <Typography variant="h6">Video Range (Optional)</Typography>
+           </Box>
+           <Typography variant="body2" color="text.secondary" paragraph>
+             Select which part of the video to analyze. Leave at full range to analyze the entire video.
+           </Typography>
+           
+           <Box>
+             <Typography variant="subtitle2" gutterBottom>
+               Start: {videoStartTime.toFixed(1)}s | End: {videoEndTime ? videoEndTime.toFixed(1) : `${(videoDuration || 0).toFixed(1)}`}s
+             </Typography>
+             <Slider
+               value={[videoStartTime, videoEndTime || videoDuration || 100]}
+               min={0}
+               max={videoDuration || 100}
+               step={0.5}
+               onChange={(_, value) => {
+                 if (Array.isArray(value)) {
+                   const [start, end] = value;
+                   setState({
+                     videoStartTime: start,
+                     videoEndTime: end === (videoDuration || 100) ? null : end,
+                   });
+                 }
+               }}
+               valueLabelDisplay="auto"
+               valueLabelFormat={(value) => `${value.toFixed(1)}s`}
+               marks={[
+                 { value: 0, label: '0s' },
+                 { value: videoDuration || 100, label: `${(videoDuration || 100).toFixed(1)}s` },
+               ]}
+               disableSwap
+             />
+             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+               Drag the handles to select the time range you want to analyze
+             </Typography>
+           </Box>
+         </CardContent>
+       </Card>
+
+       <Grid container spacing={4}>
         <Grid item xs={12} md={6}>
           <Card variant="outlined">
             <CardContent>

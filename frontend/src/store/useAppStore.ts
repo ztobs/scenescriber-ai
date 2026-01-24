@@ -15,6 +15,9 @@ const initialState: Omit<AppState, 'setState' | 'reset'> = {
   minSceneDuration: 2.0,
   aiModel: 'openai',
   descriptionLength: 'medium',
+  videoStartTime: 0,
+  videoEndTime: null,
+  videoDuration: 0,
   loading: false,
   error: null,
   config: null,
@@ -73,8 +76,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
     
     try {
       const response = await videoApi.uploadVideo(file);
+      
+      // Get video duration using HTML5 video element
+      const videoDuration = await new Promise<number>((resolve) => {
+        const video = document.createElement('video');
+        video.onloadedmetadata = () => {
+          resolve(video.duration);
+        };
+        video.src = URL.createObjectURL(file);
+      });
+      
       set({
         uploadedFile: response,
+        videoDuration: videoDuration,
+        videoStartTime: 0,
+        videoEndTime: null,
         currentStep: 'configure',
         loading: false,
       });
@@ -103,6 +119,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         min_scene_duration: state.minSceneDuration,
         ai_model: state.aiModel,
         description_length: state.descriptionLength,
+        start_time: state.videoStartTime > 0 ? state.videoStartTime : undefined,
+        end_time: state.videoEndTime !== null ? state.videoEndTime : undefined,
       };
       
       const response = await videoApi.analyzeVideo(request);

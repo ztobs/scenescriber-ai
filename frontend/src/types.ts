@@ -26,6 +26,8 @@ export interface AnalysisRequest {
   min_scene_duration: number;
   ai_model: 'openai' | 'claude' | 'gemini' | 'llava';
   description_length: 'short' | 'medium' | 'detailed';
+  start_time?: number;  // Start time in seconds
+  end_time?: number;    // End time in seconds
 }
 
 export interface AnalysisResponse {
@@ -90,6 +92,9 @@ export interface AppState {
   minSceneDuration: number;
   aiModel: 'openai' | 'claude' | 'gemini' | 'llava';
   descriptionLength: 'short' | 'medium' | 'detailed';
+  videoStartTime: number;      // Start time in seconds (0 = beginning)
+  videoEndTime: number | null;  // End time in seconds (null = end of video)
+  videoDuration: number;        // Total video duration in seconds
   loading: boolean;
   error: string | null;
   config: AppConfig | null;

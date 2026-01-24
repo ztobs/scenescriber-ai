@@ -221,7 +221,9 @@ async def analyze_video(
     detection_sensitivity: str = "medium",
     min_scene_duration: float = 2.0,
     ai_model: str = "openai",
-    description_length: str = "medium"
+    description_length: str = "medium",
+    start_time: Optional[float] = None,
+    end_time: Optional[float] = None
 ):
     """Start video analysis with scene detection and AI description generation.
     
@@ -232,6 +234,8 @@ async def analyze_video(
         min_scene_duration: Minimum scene duration in seconds
         ai_model: AI model to use ('openai', 'claude', 'gemini', 'llava')
         description_length: Description length ('short', 'medium', 'detailed')
+        start_time: Start time in seconds (0 = beginning, None = 0)
+        end_time: End time in seconds (None = end of video)
         
     Returns:
         Job information with job_id for status tracking
@@ -264,7 +268,9 @@ async def analyze_video(
         detection_sensitivity=detection_sensitivity,
         min_scene_duration=min_scene_duration,
         ai_model=ai_model,
-        description_length=description_length
+        description_length=description_length,
+        start_time=start_time,
+        end_time=end_time
     )
     
     return {
@@ -282,7 +288,9 @@ def process_video_analysis(
     detection_sensitivity: str,
     min_scene_duration: float,
     ai_model: str,
-    description_length: str
+    description_length: str,
+    start_time: Optional[float] = None,
+    end_time: Optional[float] = None
 ):
     """Background task for video analysis processing."""
     try:
@@ -297,6 +305,24 @@ def process_video_analysis(
             min_scene_duration=min_scene_duration
         )
         scenes = detector.detect_scenes(video_path)
+        
+        # Filter scenes by time range if specified
+        if start_time is not None or end_time is not None:
+            start = start_time or 0.0
+            filtered_scenes = []
+            for scene in scenes:
+                # Keep scenes that overlap with the specified range
+                if end_time is None:
+                    # If no end_time, include all scenes from start_time onwards
+                    if scene["end_time"] > start:
+                        filtered_scenes.append(scene)
+                else:
+                    # Include scenes that overlap with [start_time, end_time]
+                    if scene["end_time"] > start and scene["start_time"] < end_time:
+                        filtered_scenes.append(scene)
+            
+            scenes = filtered_scenes
+            logger.info(f"Filtered to {len(scenes)} scenes within time range [{start}, {end_time}]")
         
         # Update progress
         processing_jobs[job_id]["progress"] = 40

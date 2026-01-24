@@ -35,6 +35,8 @@ class AnalysisRequest(TypedDict):
     detection_sensitivity: str
     min_scene_duration: float
     ai_model: str
+    start_time: Optional[float]  # Start time in seconds (0 = beginning)
+    end_time: Optional[float]    # End time in seconds (None = end of video)
 
 
 class AnalysisResponse(TypedDict):
