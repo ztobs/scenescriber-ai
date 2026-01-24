@@ -171,16 +171,28 @@ class SRTExporter:
         i = 0
         
         while i < len(lines):
+            line = lines[i].strip()
+            
+            # Skip comment lines (starting with #)
+            if line.startswith("#"):
+                i += 1
+                continue
+            
+            # Skip empty lines
+            if not line:
+                i += 1
+                continue
+            
             # Check sequence number
-            if not lines[i].strip().isdigit():
-                logger.error(f"Invalid sequence number at line {i+1}: {lines[i]}")
+            if not line.isdigit():
+                logger.error(f"Invalid sequence number at line {i+1}: {line}")
                 return False
             
             i += 1
             
             # Check timestamp line
             if i >= len(lines):
-                logger.error(f"Missing timestamp line after sequence {lines[i-1]}")
+                logger.error(f"Missing timestamp line after sequence {line}")
                 return False
             
             timestamp_line = lines[i].strip()
@@ -191,7 +203,7 @@ class SRTExporter:
             i += 1
             
             # Skip text lines until empty line or next sequence
-            while i < len(lines) and lines[i].strip():
+            while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith("#"):
                 i += 1
             
             # Skip empty line
