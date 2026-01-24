@@ -7,6 +7,7 @@ import type {
   AnalysisResponse,
   JobStatus,
   ScenesResponse,
+  AppConfig,
 } from '../types';
 
 const API_BASE_URL = '/api';
@@ -19,6 +20,12 @@ const api = axios.create({
 });
 
 export const videoApi = {
+  /** Get application configuration */
+  getConfig: async (): Promise<AppConfig> => {
+    const response = await api.get('/config');
+    return response.data;
+  },
+
   /** Upload video file */
   uploadVideo: async (file: File): Promise<UploadResponse> => {
     const formData = new FormData();

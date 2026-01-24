@@ -68,6 +68,10 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install --upgrade pip
 pip install -r requirements-minimal.txt
 
+# Configure API keys (optional but recommended)
+cp .env.example .env
+# Edit .env and add your API keys (OpenAI, Claude, or Gemini)
+
 # Create necessary directories
 mkdir -p uploads exports
 
@@ -310,6 +314,33 @@ The application has two scene detection modes:
    - Requires OpenCV installation
    - Enable by installing: `pip install opencv-python scikit-image`
 
+## 🔑 API Key Configuration
+
+### Getting API Keys
+
+1. **OpenAI GPT-4 Vision** (Recommended):
+   - Visit: https://platform.openai.com/api-keys
+   - Create new API key
+   - Add to `.env`: `OPENAI_API_KEY=your_key_here`
+
+2. **Anthropic Claude 3** (Alternative):
+   - Visit: https://console.anthropic.com/settings/keys
+   - Create new API key
+   - Add to `.env`: `ANTHROPIC_API_KEY=your_key_here`
+
+3. **Google Gemini** (Cost-effective):
+   - Visit: https://makersuite.google.com/app/apikey
+   - Create new API key
+   - Add to `.env`: `GOOGLE_API_KEY=your_key_here`
+
+### Without API Keys
+
+The application will still work without API keys:
+- Scene detection using FFmpeg ✓
+- SRT export ✓
+- Mock AI descriptions ✓ (editable)
+- Full workflow ✓
+
 ### Testing the Installation
 
 ```bash
@@ -321,6 +352,9 @@ python -c "from src.main import app; print('Backend imports OK')"
 # Test frontend
 cd frontend
 npm run type-check
+
+# Test API connectivity
+curl http://localhost:8000/api/config
 ```
 
 ## 📞 Support

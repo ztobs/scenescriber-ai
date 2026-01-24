@@ -50,6 +50,35 @@ export interface ScenesResponse {
   total_scenes: number;
 }
 
+export interface AIProvider {
+  available: boolean;
+  name: string;
+  description: string;
+  needs_api_key: boolean;
+  key_configured: boolean;
+}
+
+export interface AppConfig {
+  ai_providers: {
+    openai: AIProvider;
+    claude: AIProvider;
+    gemini: AIProvider;
+    llava: AIProvider;
+  };
+  default_settings: {
+    detection_sensitivity: 'low' | 'medium' | 'high';
+    min_scene_duration: number;
+    ai_model: 'openai' | 'claude' | 'gemini' | 'llava';
+    description_length: 'short' | 'medium' | 'detailed';
+  };
+  features: {
+    scene_detection: boolean;
+    ai_description: boolean;
+    srt_export: boolean;
+    theme_support: boolean;
+  };
+}
+
 export interface AppState {
   currentStep: 'upload' | 'configure' | 'processing' | 'review' | 'export';
   uploadedFile: UploadResponse | null;
@@ -63,4 +92,5 @@ export interface AppState {
   descriptionLength: 'short' | 'medium' | 'detailed';
   loading: boolean;
   error: string | null;
+  config: AppConfig | null;
 }

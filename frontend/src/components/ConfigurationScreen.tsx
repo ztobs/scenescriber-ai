@@ -44,6 +44,7 @@ export const ConfigurationScreen: React.FC = () => {
     minSceneDuration,
     aiModel,
     descriptionLength,
+    config,
     setState,
     startAnalysis,
     loading,
@@ -190,17 +191,63 @@ export const ConfigurationScreen: React.FC = () => {
                   value={aiModel}
                   label="AI Model"
                   onChange={(e) => setState({ aiModel: e.target.value as any })}
+                  disabled={!config?.features.ai_description}
                 >
-                  <MenuItem value="openai">OpenAI GPT-4 Vision (Best quality)</MenuItem>
-                  <MenuItem value="claude">Anthropic Claude 3 (Alternative)</MenuItem>
-                  <MenuItem value="gemini">Google Gemini (Cost-effective)</MenuItem>
-                  <MenuItem value="llava">Local LLaVA (Privacy-focused)</MenuItem>
+                  {config?.ai_providers.openai.available && (
+                    <MenuItem value="openai">
+                      OpenAI GPT-4 Vision (Best quality)
+                      {!config.ai_providers.openai.key_configured && " ⚠️ No API key"}
+                    </MenuItem>
+                  )}
+                  {config?.ai_providers.claude.available && (
+                    <MenuItem value="claude">
+                      Anthropic Claude 3 (Alternative)
+                      {!config.ai_providers.claude.key_configured && " ⚠️ No API key"}
+                    </MenuItem>
+                  )}
+                  {config?.ai_providers.gemini.available && (
+                    <MenuItem value="gemini">
+                      Google Gemini (Cost-effective)
+                      {!config.ai_providers.gemini.key_configured && " ⚠️ No API key"}
+                    </MenuItem>
+                  )}
+                  {config?.ai_providers.llava.available && (
+                    <MenuItem value="llava">Local LLaVA (Privacy-focused)</MenuItem>
+                  )}
+                  {!config?.features.ai_description && (
+                    <MenuItem value="openai" disabled>
+                      No AI providers available (configure API keys)
+                    </MenuItem>
+                  )}
                 </Select>
               </FormControl>
 
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Note: AI models require API keys. Configure in backend settings.
-              </Alert>
+              {config && !config.features.ai_description && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    ⚠️ No AI API keys configured
+                  </Typography>
+                  <Typography variant="body2">
+                    You'll get mock descriptions. To enable AI:
+                    <ol>
+                      <li>Copy <code>.env.example</code> to <code>.env</code> in backend/</li>
+                      <li>Add your API keys (OpenAI, Claude, or Gemini)</li>
+                      <li>Restart the backend server</li>
+                    </ol>
+                    Scene detection and SRT export will still work without AI.
+                  </Typography>
+                </Alert>
+              )}
+
+              {config?.ai_providers[aiModel]?.needs_api_key && 
+               !config?.ai_providers[aiModel]?.key_configured && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography variant="body2">
+                    Selected model needs API key. You'll get mock descriptions.
+                    Configure in backend/.env file.
+                  </Typography>
+                </Alert>
+              )}
             </CardContent>
           </Card>
         </Grid>

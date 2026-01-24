@@ -1,6 +1,6 @@
 /** Main App component for Video Scene AI Analyzer */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Container, Box, Typography, Alert, LinearProgress } from '@mui/material';
 import { useAppStore } from './store/useAppStore';
 import { UploadScreen } from './components/UploadScreen';
@@ -10,7 +10,11 @@ import { ReviewScreen } from './components/ReviewScreen';
 import { ExportScreen } from './components/ExportScreen';
 
 const App: React.FC = () => {
-  const { currentStep, loading, error } = useAppStore();
+  const { currentStep, loading, error, loadConfig, config } = useAppStore();
+
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
 
   const renderStep = () => {
     switch (currentStep) {

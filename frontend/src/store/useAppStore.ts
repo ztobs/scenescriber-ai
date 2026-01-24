@@ -17,6 +17,7 @@ const initialState: Omit<AppState, 'setState' | 'reset'> = {
   descriptionLength: 'medium',
   loading: false,
   error: null,
+  config: null,
 };
 
 interface AppStore extends AppState {
@@ -24,6 +25,7 @@ interface AppStore extends AppState {
   reset: () => void;
   
   // Actions
+  loadConfig: () => Promise<void>;
   uploadVideo: (file: File) => Promise<void>;
   startAnalysis: () => Promise<void>;
   updateSceneDescription: (sceneId: number, description: string) => Promise<void>;
@@ -37,6 +39,27 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setState: (state) => set(state),
   
   reset: () => set(initialState),
+  
+  loadConfig: async () => {
+    set({ loading: true, error: null });
+    
+    try {
+      const config = await videoApi.getConfig();
+      set({
+        config,
+        detectionSensitivity: config.default_settings.detection_sensitivity,
+        minSceneDuration: config.default_settings.min_scene_duration,
+        aiModel: config.default_settings.ai_model,
+        descriptionLength: config.default_settings.description_length,
+        loading: false,
+      });
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to load configuration',
+        loading: false,
+      });
+    }
+  },
   
   uploadVideo: async (file: File) => {
     set({ loading: true, error: null });

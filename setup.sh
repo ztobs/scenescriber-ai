@@ -26,6 +26,15 @@ echo "Installing Python dependencies..."
 pip install --upgrade pip
 pip install -r requirements-minimal.txt
 
+# Configure environment
+echo "Setting up environment configuration..."
+if [ ! -f .env ]; then
+    cp .env.example .env
+    echo "Created .env file. Edit it to add your API keys."
+else
+    echo ".env file already exists."
+fi
+
 # Create necessary directories
 echo "Creating upload and export directories..."
 mkdir -p uploads exports

@@ -2,27 +2,43 @@
 
 import logging
 import uuid
+import os
 from typing import Optional
 from pathlib import Path
+from dotenv import load_dotenv
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from .models import AnalysisRequest, AnalysisResponse, Scene, ProjectConfig
-try:
-    from .scene_detector import SceneDetector
-    SCENE_DETECTOR_AVAILABLE = True
-except ImportError:
-    from .scene_detector_simple import SimpleSceneDetector as SceneDetector
-    SCENE_DETECTOR_AVAILABLE = False
-
+from .scene_detector_simple import SimpleSceneDetector
 from .ai_describer import AIDescriber
 from .srt_exporter import SRTExporter
 
+# Load environment variables
+load_dotenv()
+
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=os.getenv('LOG_LEVEL', 'INFO'),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+
+# Check for API keys
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+
+AI_PROVIDERS_AVAILABLE = {
+    'openai': bool(OPENAI_API_KEY),
+    'claude': bool(ANTHROPIC_API_KEY),
+    'gemini': bool(GOOGLE_API_KEY),
+    'llava': False  # Local model not implemented yet
+}
+
+logger.info(f"AI Providers available: {AI_PROVIDERS_AVAILABLE}")
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -31,10 +47,13 @@ app = FastAPI(
     version="0.1.0"
 )
 
+# Get CORS origins from environment
+cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001').split(',')
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict to frontend domain
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -50,12 +69,64 @@ async def root():
     return {
         "name": "Video Scene AI Analyzer API",
         "version": "0.1.0",
+        "status": "operational",
+        "ai_providers_available": AI_PROVIDERS_AVAILABLE,
         "endpoints": {
             "upload": "/api/upload",
             "analyze": "/api/analyze",
             "status": "/api/status/{job_id}",
             "scenes": "/api/scenes/{job_id}",
             "export": "/api/export/srt/{job_id}",
+            "config": "/api/config",
+        }
+    }
+
+
+@app.get("/api/config")
+async def get_config():
+    """Get application configuration and available AI providers."""
+    return {
+        "ai_providers": {
+            "openai": {
+                "available": bool(OPENAI_API_KEY),
+                "name": "OpenAI GPT-4 Vision",
+                "description": "Best quality, most expensive",
+                "needs_api_key": True,
+                "key_configured": bool(OPENAI_API_KEY),
+            },
+            "claude": {
+                "available": bool(ANTHROPIC_API_KEY),
+                "name": "Anthropic Claude 3",
+                "description": "Excellent quality, good alternative",
+                "needs_api_key": True,
+                "key_configured": bool(ANTHROPIC_API_KEY),
+            },
+            "gemini": {
+                "available": bool(GOOGLE_API_KEY),
+                "name": "Google Gemini",
+                "description": "Cost-effective, good performance",
+                "needs_api_key": True,
+                "key_configured": bool(GOOGLE_API_KEY),
+            },
+            "llava": {
+                "available": False,
+                "name": "Local LLaVA",
+                "description": "Privacy-focused, no API costs (not implemented)",
+                "needs_api_key": False,
+                "key_configured": False,
+            }
+        },
+        "default_settings": {
+            "detection_sensitivity": os.getenv('DEFAULT_SENSITIVITY', 'medium'),
+            "min_scene_duration": float(os.getenv('DEFAULT_MIN_SCENE_DURATION', '2.0')),
+            "ai_model": os.getenv('DEFAULT_AI_MODEL', 'openai'),
+            "description_length": os.getenv('DEFAULT_DESCRIPTION_LENGTH', 'medium'),
+        },
+        "features": {
+            "scene_detection": True,
+            "ai_description": any(AI_PROVIDERS_AVAILABLE.values()),
+            "srt_export": True,
+            "theme_support": True,
         }
     }
 
@@ -74,7 +145,8 @@ async def upload_video(file: UploadFile = File(...)):
     
     # Validate file type
     allowed_extensions = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
-    file_extension = Path(file.filename).suffix.lower()
+    filename = file.filename or "video.mp4"
+    file_extension = Path(filename).suffix.lower()
     
     if file_extension not in allowed_extensions:
         raise HTTPException(
@@ -189,7 +261,7 @@ def process_video_analysis(
         processing_jobs[job_id]["message"] = "Detecting scenes..."
         
         # Step 1: Detect scenes
-        detector = SceneDetector(
+        detector = SimpleSceneDetector(
             sensitivity=detection_sensitivity,
             min_scene_duration=min_scene_duration
         )
