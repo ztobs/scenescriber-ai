@@ -394,8 +394,8 @@ class AIDescriber:
         # but usually LLaVA takes one. Let's send the first one for now to be safe/consistent 
         # with _describe_with_llava logic which uses keyframes[:1])
         images = []
-        # Using the first keyframe as LLaVA 1.5 typically handles single image well
-        for keyframe in keyframes[:1]:
+        # Load all keyframes for Ollama
+        for keyframe in keyframes:
             with open(keyframe, "rb") as image_file:
                 base64_image = base64.b64encode(image_file.read()).decode("utf-8")
                 images.append(base64_image)
@@ -574,23 +574,39 @@ class AIDescriber:
             if hasattr(model, "gradient_checkpointing_enable"):
                 model.gradient_checkpointing_enable()
                 logger.debug("Enabled gradient checkpointing for memory efficiency")
-            
+             
             # Load and process keyframes
             images = []
-            for keyframe_path in keyframes[:1]:  # Use first keyframe for speed
+            keyframe_imgs = []
+            for keyframe_path in keyframes:  # Load all keyframes to analyze complete scene
                 try:
                     img = Image.open(keyframe_path).convert('RGB')
-                    # Resize large images to reduce memory usage
-                    # LLaVA works with 336x336, but smaller images still work
-                    if img.size[0] > 336 or img.size[1] > 336:
-                        img.thumbnail((336, 336), Image.Resampling.LANCZOS)
-                    images.append(img)
+                    # Resize images to consistent size for stitching
+                    # 336x336 is a good size for LLaVA
+                    if img.size[0] != 336 or img.size[1] != 336:
+                        img = img.resize((336, 336), Image.Resampling.LANCZOS)
+                    keyframe_imgs.append(img)
                 except Exception as e:
                     logger.warning(f"Failed to load keyframe {keyframe_path}: {e}")
             
-            if not images:
+            if not keyframe_imgs:
                 raise ValueError("No valid keyframes to analyze")
             
+            # Stitch keyframes horizontally if multiple frames
+            if len(keyframe_imgs) > 1:
+                # Create a new image with combined width
+                total_width = sum(img.width for img in keyframe_imgs)
+                max_height = keyframe_imgs[0].height
+                stitched = Image.new('RGB', (total_width, max_height))
+                x_offset = 0
+                for img in keyframe_imgs:
+                    stitched.paste(img, (x_offset, 0))
+                    x_offset += img.width
+                images = [stitched]
+                logger.info(f"Stitched {len(keyframe_imgs)} keyframes into single image for analysis")
+            else:
+                images = keyframe_imgs
+             
             # Build LLaVA-specific prompt
             prompt = self._build_llava_prompt(theme, description_length)
             logger.debug(f"LLaVA prompt: {prompt}")
@@ -727,7 +743,9 @@ class AIDescriber:
             "detailed": "Provide a detailed description (40-60 words)."
         }
         
-        base_prompt = f"""You are a professional video editor's assistant. Analyze these keyframes from a video scene and provide an ACCURATE, SPECIFIC description.
+        base_prompt = f"""You are a professional video editor's assistant. Analyze these CONSECUTIVE KEYFRAMES from a video scene and provide an ACCURATE, SPECIFIC description.
+
+IMPORTANT: These are multiple keyframes showing progression over time. Describe what happens across all frames, not just one.
 
 {length_instructions.get(description_length, length_instructions['medium'])}
 
@@ -735,18 +753,19 @@ CRITICAL INSTRUCTIONS:
 - Be SPECIFIC and CONCRETE (not generic like "person working" or "using tools")
 - Describe WHAT specifically is happening (not general activities)
 - Include specific objects, tools, actions, and results visible
-- Describe the SEQUENCE of actions if multiple frames show progression
+- Describe the SEQUENCE of actions and progression across frames
 - Note colors, positions, materials when relevant
 - Avoid vague descriptions - be precise
+- Explain what changes or progresses from frame to frame
 
 Focus on:
 1. Specific objects, tools, or equipment (brand, type, color if visible)
 2. Specific actions being performed (verb + object)
 3. Location, setting, and spatial layout
-4. Any visible results or changes between frames
-5. People's positioning and hand/body movements
+4. Visible results or changes between frames (progression of action)
+5. People's positioning and hand/body movements throughout the sequence
 
-Provide a clear, factual, specific description suitable for video editing."""
+Provide a clear, factual, specific description of the action/progression suitable for video editing."""
         
         if theme:
             base_prompt += f"""
@@ -782,12 +801,13 @@ For reviews: What product features or qualities are shown?"""
         
         # IMPORTANT: Must include <image> token for LLaVA processor to recognize image
         # Use VERY simple instructions for 7B model
+        # NOTE: The image may show stacked/stitched keyframes - instruct model to describe the action/content, not the format
         if theme:
-            # Simple theme-based prompt
-            prompt = f"<image> Describe this {theme} scene in a {length_text} sentence. Be specific about what you see."
+            # Simple theme-based prompt - focus on action, not image format
+            prompt = f"<image> Describe what is happening in this {theme} scene in a {length_text} sentence. Focus on the action, objects, and what is specifically occurring. Do NOT describe the image layout or that you are viewing multiple frames - just describe the scene content and action."
         else:
-            # Simple generic prompt
-            prompt = f"<image> Describe what you see in this video scene in a {length_text} sentence. Be specific."
+            # Simple generic prompt - focus on action, not image format
+            prompt = f"<image> Describe what is happening in this video scene in a {length_text} sentence. Focus on the action, objects, and what is occurring. Do NOT describe the image layout or format - just describe the scene content and action."
         
         return prompt
 
