@@ -24,7 +24,7 @@ export interface AnalysisRequest {
   theme?: string;
   detection_sensitivity: 'low' | 'medium' | 'high';
   min_scene_duration: number;
-  ai_model: 'openai' | 'claude' | 'gemini' | 'llava';
+  ai_model: string;
   description_length: 'short' | 'medium' | 'detailed';
   start_time?: number;  // Start time in seconds
   end_time?: number;    // End time in seconds
@@ -61,16 +61,11 @@ export interface AIProvider {
 }
 
 export interface AppConfig {
-  ai_providers: {
-    openai: AIProvider;
-    claude: AIProvider;
-    gemini: AIProvider;
-    llava: AIProvider;
-  };
+  ai_providers: Record<string, AIProvider>;
   default_settings: {
     detection_sensitivity: 'low' | 'medium' | 'high';
     min_scene_duration: number;
-    ai_model: 'openai' | 'claude' | 'gemini' | 'llava';
+    ai_model: string;
     description_length: 'short' | 'medium' | 'detailed';
   };
   features: {
@@ -90,7 +85,7 @@ export interface AppState {
   theme: string;
   detectionSensitivity: 'low' | 'medium' | 'high';
   minSceneDuration: number;
-  aiModel: 'openai' | 'claude' | 'gemini' | 'llava';
+  aiModel: string;
   descriptionLength: 'short' | 'medium' | 'detailed';
   videoStartTime: number;      // Start time in seconds (0 = beginning)
   videoEndTime: number | null;  // End time in seconds (null = end of video)

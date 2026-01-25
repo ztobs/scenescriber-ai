@@ -240,28 +240,16 @@ export const ConfigurationScreen: React.FC = () => {
                   onChange={(e) => setState({ aiModel: e.target.value as any })}
                   disabled={!config?.features.ai_description}
                 >
-                  {config?.ai_providers.openai.available && (
-                    <MenuItem value="openai">
-                      OpenAI GPT-4 Vision (Best quality)
-                      {!config.ai_providers.openai.key_configured && " ⚠️ No API key"}
-                    </MenuItem>
-                  )}
-                  {config?.ai_providers.claude.available && (
-                    <MenuItem value="claude">
-                      Anthropic Claude 3 (Alternative)
-                      {!config.ai_providers.claude.key_configured && " ⚠️ No API key"}
-                    </MenuItem>
-                  )}
-                  {config?.ai_providers.gemini.available && (
-                    <MenuItem value="gemini">
-                      Google Gemini (Cost-effective)
-                      {!config.ai_providers.gemini.key_configured && " ⚠️ No API key"}
-                    </MenuItem>
-                  )}
-                  {config?.ai_providers.llava.available && (
-                    <MenuItem value="llava">Local LLaVA (Privacy-focused)</MenuItem>
-                  )}
-                  {!config?.features.ai_description && (
+                  {config?.ai_providers && Object.entries(config.ai_providers).map(([key, provider]) => (
+                    provider.available && (
+                      <MenuItem key={key} value={key}>
+                        {provider.name}
+                        {provider.needs_api_key && !provider.key_configured && " ⚠️ No API key"}
+                      </MenuItem>
+                    )
+                  ))}
+                  
+                  {config && !Object.values(config.ai_providers).some(p => p.available) && (
                     <MenuItem value="openai" disabled>
                       No AI providers available (configure API keys)
                     </MenuItem>

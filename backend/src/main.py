@@ -46,11 +46,38 @@ except Exception as e:
     LLAVA_AVAILABLE = False
     logger.warning(f"Unexpected error checking LLaVA dependencies: {e}")
 
+# Check for Ollama availability
+try:
+    import requests
+    OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    # Quick check if Ollama is running
+    requests.get(OLLAMA_HOST, timeout=1)
+    OLLAMA_AVAILABLE = True
+except Exception:
+    OLLAMA_AVAILABLE = False
+    OLLAMA_HOST = "http://localhost:11434" # Default fallback
+    # Don't log warning as it's optional
+
+def get_ollama_models():
+    """Fetch available models from Ollama."""
+    if not OLLAMA_AVAILABLE:
+        return []
+    
+    try:
+        response = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=2)
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("models", [])
+    except Exception as e:
+        logger.warning(f"Failed to fetch Ollama models: {e}")
+    return []
+
 AI_PROVIDERS_AVAILABLE = {
     'openai': bool(OPENAI_API_KEY),
     'claude': bool(ANTHROPIC_API_KEY),
     'gemini': bool(GOOGLE_API_KEY),
-    'llava': LLAVA_AVAILABLE  # Available if torch and transformers installed
+    'llava': LLAVA_AVAILABLE,  # Available if torch and transformers installed
+    'ollama': OLLAMA_AVAILABLE
 }
 
 logger.info(f"AI Providers available: {AI_PROVIDERS_AVAILABLE}")
@@ -100,37 +127,64 @@ async def root():
 @app.get("/api/config")
 async def get_config():
     """Get application configuration and available AI providers."""
-    return {
-        "ai_providers": {
-            "openai": {
-                "available": bool(OPENAI_API_KEY),
-                "name": "OpenAI GPT-4 Vision",
-                "description": "Best quality, most expensive",
-                "needs_api_key": True,
-                "key_configured": bool(OPENAI_API_KEY),
-            },
-            "claude": {
-                "available": bool(ANTHROPIC_API_KEY),
-                "name": "Anthropic Claude 3",
-                "description": "Excellent quality, good alternative",
-                "needs_api_key": True,
-                "key_configured": bool(ANTHROPIC_API_KEY),
-            },
-            "gemini": {
-                "available": bool(GOOGLE_API_KEY),
-                "name": "Google Gemini",
-                "description": "Cost-effective, good performance",
-                "needs_api_key": True,
-                "key_configured": bool(GOOGLE_API_KEY),
-            },
-            "llava": {
-                "available": LLAVA_AVAILABLE,
-                "name": "Local LLaVA",
-                "description": "Privacy-focused, no API costs, requires torch and transformers",
+    
+    providers = {
+        "openai": {
+            "available": bool(OPENAI_API_KEY),
+            "name": "OpenAI GPT-4 Vision",
+            "description": "Best quality, most expensive",
+            "needs_api_key": True,
+            "key_configured": bool(OPENAI_API_KEY),
+        },
+        "claude": {
+            "available": bool(ANTHROPIC_API_KEY),
+            "name": "Anthropic Claude 3",
+            "description": "Excellent quality, good alternative",
+            "needs_api_key": True,
+            "key_configured": bool(ANTHROPIC_API_KEY),
+        },
+        "gemini": {
+            "available": bool(GOOGLE_API_KEY),
+            "name": "Google Gemini",
+            "description": "Cost-effective, good performance",
+            "needs_api_key": True,
+            "key_configured": bool(GOOGLE_API_KEY),
+        },
+        "llava": {
+            "available": LLAVA_AVAILABLE,
+            "name": "Local LLaVA (Transformers)",
+            "description": "Privacy-focused, no API costs, requires torch and transformers",
+            "needs_api_key": False,
+            "key_configured": False,
+        }
+    }
+
+    # Add Ollama models dynamically
+    if OLLAMA_AVAILABLE:
+        ollama_models = get_ollama_models()
+        for model in ollama_models:
+            model_name = model.get("name", "unknown")
+            # Create a unique key for each model
+            key = f"ollama/{model_name}"
+            providers[key] = {
+                "available": True,
+                "name": f"{model_name} (ollama)",
+                "description": f"Local Ollama model: {model_name}",
                 "needs_api_key": False,
                 "key_configured": False,
             }
-        },
+    else:
+         # Optional: Add a placeholder if Ollama is not available but user wants to know
+         providers["ollama"] = {
+            "available": False,
+            "name": "Ollama (Not Detected)",
+            "description": "Ensure Ollama is running at localhost:11434",
+            "needs_api_key": False,
+            "key_configured": False,
+         }
+
+    return {
+        "ai_providers": providers,
         "default_settings": {
             "detection_sensitivity": os.getenv('DEFAULT_SENSITIVITY', 'medium'),
             "min_scene_duration": float(os.getenv('DEFAULT_MIN_SCENE_DURATION', '2.0')),
@@ -247,7 +301,7 @@ async def analyze_video(
         theme: Optional theme for description generation
         detection_sensitivity: Scene detection sensitivity ('low', 'medium', 'high')
         min_scene_duration: Minimum scene duration in seconds
-        ai_model: AI model to use ('openai', 'claude', 'gemini', 'llava')
+        ai_model: AI model to use ('openai', 'claude', 'gemini', 'llava', 'ollama')
         description_length: Description length ('short', 'medium', 'detailed')
         start_time: Start time in seconds (0 = beginning, None = 0)
         end_time: End time in seconds (None = end of video)

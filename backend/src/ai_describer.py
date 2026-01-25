@@ -20,7 +20,7 @@ class AIDescriber:
         """Initialize AI describer with model configuration.
         
         Args:
-            model: AI model to use ('openai', 'claude', 'gemini', 'llava')
+            model: AI model to use ('openai', 'claude', 'gemini', 'llava', 'ollama')
             api_key: API key for the selected model
         """
         self.model = model
@@ -33,7 +33,10 @@ class AIDescriber:
         else:
             self.api_key = api_key or os.getenv(env_var_name)
         
-        if not self.api_key and model != "llava":
+        # Check if model is local
+        is_local = model == 'llava' or model == 'ollama' or model.startswith('ollama/')
+        
+        if not self.api_key and not is_local:
             logger.warning(f"No API key provided for {model}. Some features may not work.")
 
     def generate_descriptions(
@@ -55,7 +58,9 @@ class AIDescriber:
         logger.info(f"Generating descriptions for {len(scenes)} scenes with theme: {theme}")
         
         # Check if AI is available
-        if not self.api_key and self.model not in ['llava']:
+        is_local = self.model == 'llava' or self.model == 'ollama' or self.model.startswith('ollama/')
+        
+        if not self.api_key and not is_local:
             logger.warning(f"No API key for {self.model}, using mock descriptions")
             return self._generate_mock_descriptions(scenes, theme, description_length)
         
@@ -199,7 +204,8 @@ class AIDescriber:
             description += details[detail_idx]
         
         # For LLaVA, return blank instead of mock
-        if self.model == 'llava':
+        is_local = self.model == 'llava' or self.model == 'ollama' or self.model.startswith('ollama/')
+        if is_local:
             return ""
         
         # For other models without API key, return blank
@@ -232,6 +238,8 @@ class AIDescriber:
             return self._describe_with_gemini(keyframes, theme, description_length)
         elif self.model == "llava":
             return self._describe_with_llava(keyframes, theme, description_length)
+        elif self.model == "ollama" or self.model.startswith("ollama/"):
+            return self._describe_with_ollama(keyframes, theme, description_length)
         else:
             raise ValueError(f"Unsupported model: {self.model}")
 
@@ -365,6 +373,72 @@ class AIDescriber:
         # Note: Gemini implementation would require google-generativeai library
         # This is a placeholder implementation
         raise NotImplementedError("Gemini support not yet implemented")
+
+    def _describe_with_ollama(
+        self, 
+        keyframes: List[str], 
+        theme: Optional[str] = None,
+        description_length: str = "medium"
+    ) -> str:
+        """Generate description using local Ollama model (e.g., LLaVA)."""
+        ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        
+        # Determine model name from self.model if possible, or env var
+        if self.model.startswith("ollama/"):
+            ollama_model = self.model.split("/", 1)[1]
+        else:
+            ollama_model = os.getenv("OLLAMA_MODEL", "llava")
+
+        # Prepare images (Ollama typically handles one image per prompt well, 
+        # but supports multiple. We'll send all keyframes if supported, 
+        # but usually LLaVA takes one. Let's send the first one for now to be safe/consistent 
+        # with _describe_with_llava logic which uses keyframes[:1])
+        images = []
+        # Using the first keyframe as LLaVA 1.5 typically handles single image well
+        for keyframe in keyframes[:1]:
+            with open(keyframe, "rb") as image_file:
+                base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+                images.append(base64_image)
+
+        if not images:
+             raise ValueError("No valid keyframes to analyze")
+
+        # Build prompt
+        # We can reuse the LLaVA prompt builder but remove the <image> tag 
+        # as Ollama's API handles image insertion
+        prompt = self._build_llava_prompt(theme, description_length)
+        prompt = prompt.replace("<image>", "").strip()
+
+        payload = {
+            "model": ollama_model,
+            "prompt": prompt,
+            "images": images,
+            "stream": False,
+            "options": {
+                "temperature": 0.7,
+                "top_p": 0.9,
+            }
+        }
+
+        try:
+            response = requests.post(
+                f"{ollama_host}/api/generate",
+                json=payload,
+                timeout=120
+            )
+            response.raise_for_status()
+            description = response.json().get("response", "").strip()
+            
+            if not description:
+                logger.warning("Ollama returned empty description")
+                return ""
+                
+            return description
+            
+        except requests.RequestException as e:
+            logger.error(f"Ollama API error: {e}")
+            # Don't raise, just return empty so flow continues (similar to other local failures)
+            return ""
 
     def _describe_with_llava(
         self, 

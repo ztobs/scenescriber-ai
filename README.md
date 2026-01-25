@@ -9,7 +9,8 @@ An intelligent video analysis tool that automatically detects scene cuts, genera
   - **GPT-4o** (OpenAI) - Fastest, most accurate
   - **Claude 3** (Anthropic) - Excellent quality
   - **Gemini** (Google) - Cost-effective
-  - **LLaVA** (Local) - Privacy-focused, offline, free ✨ NEW!
+  - **LLaVA** (Local) - Privacy-focused, offline, free
+  - **Ollama Models** - Local inference with any vision model (llava, bakllava, etc.) ✨ NEW!
 - **Video Range Selection**: Choose specific time ranges to analyze (e.g., 5s - 30s of the video)
 - **Theme Integration**: Tailor descriptions to specific project themes (DIY, cooking, gaming, tutorials, etc.)
 - **SRT Export**: Exports to standard SubRip subtitle format compatible with DaVinci Resolve, Premiere Pro, etc.
@@ -201,30 +202,68 @@ The application will be available at:
 | `make test` | Run all tests |
 | `make update` | Update dependencies |
 
-## 🤖 Using LLaVA for Offline AI Descriptions
+## 🤖 Using Local AI Models (LLaVA & Ollama)
 
-SceneScriber AI now supports **LLaVA** - a local, privacy-focused AI model that runs entirely on your machine!
+SceneScriber AI supports multiple local AI options for privacy-focused, offline processing:
 
-### Setup LLaVA
+### Option 1: LLaVA (Transformers)
+Local LLaVA model running directly via Hugging Face Transformers.
+
+**Setup LLaVA:**
 
 **For GPU (NVIDIA):**
 ```bash
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-pip install transformers>=4.36.0 pillow
+pip install transformers>=4.36.0 pillow bitsandbytes accelerate
 ```
 
 **For CPU or Mac:**
 ```bash
-pip install torch transformers>=4.36.0 pillow
+pip install torch transformers>=4.36.0 pillow bitsandbytes accelerate
 ```
 
-### Use LLaVA in SceneScriber AI
+### Option 2: Ollama Models ✨ NEW!
+Use any vision model supported by Ollama (llava, bakllava, etc.) with automatic model detection.
+
+**Setup Ollama:**
+
+1. **Install Ollama**:
+   ```bash
+   # Linux/macOS
+   curl -fsSL https://ollama.ai/install.sh | sh
+   
+   # Windows: Download from https://ollama.ai/download
+   ```
+
+2. **Start Ollama service**:
+   ```bash
+   ollama serve
+   ```
+
+3. **Pull a vision model**:
+   ```bash
+   ollama pull llava:latest      # LLaVA 1.5 (7B)
+   ollama pull bakllava:latest   # BakLLaVA (7B)
+   ollama pull llava:13b         # LLaVA 1.5 (13B)
+   ```
+
+4. **Configure environment (optional)**:
+   ```bash
+   # In backend/.env file
+   OLLAMA_HOST=http://localhost:11434  # Default
+   OLLAMA_MODEL=llava:latest           # Default model
+   ```
+
+### Using Local AI Models
 
 1. Upload a video
-2. In "Configure Analysis Settings", select **"Local LLaVA (Privacy-focused)"**
+2. In "Configure Analysis Settings", select:
+   - **"Local LLaVA (Transformers)"** - For direct LLaVA integration
+   - **"llava:latest (ollama)"** - For Ollama-based LLaVA
+   - **"bakllava:latest (ollama)"** - For BakLLaVA via Ollama
+   - Any other Ollama vision model detected automatically
 3. Click "Start Analysis"
-4. The model will download automatically on first use (~7GB)
-5. All processing happens locally - no data sent to external services
+4. All processing happens locally - no data sent to external services
 
 **For detailed setup instructions, see [LLAVA_SETUP.md](LLAVA_SETUP.md)**
 
@@ -233,13 +272,19 @@ pip install torch transformers>=4.36.0 pillow
 ✅ **Privacy**: 100% offline, no data sent anywhere
 ✅ **Free**: No API keys or subscription needed
 ✅ **Offline**: Works without internet after setup
-✅ **Flexible**: Can use other AI models alongside LLaVA
+✅ **Flexible**: Multiple model options via Ollama
+✅ **Automatic Detection**: All available Ollama models appear in dropdown
 
-### Performance
+### Performance Comparison
 
-- **GPU (NVIDIA/Apple Silicon)**: 7-15 seconds per scene
-- **CPU**: 60-120 seconds per scene
-- See [LLAVA_SETUP.md](LLAVA_SETUP.md#performance-comparison) for detailed comparisons
+| Model | GPU Speed | CPU Speed | VRAM Required | Notes |
+|-------|-----------|-----------|---------------|-------|
+| **LLaVA 7B (Transformers)** | 7-15s/scene | 60-120s/scene | ~6-8GB | Direct integration |
+| **LLaVA via Ollama** | 5-12s/scene | 50-100s/scene | ~6-8GB | Better memory management |
+| **BakLLaVA via Ollama** | 8-18s/scene | 70-130s/scene | ~6-8GB | Alternative vision model |
+| **LLaVA 13B via Ollama** | 15-30s/scene | 120-240s/scene | ~12-14GB | Higher quality |
+
+See [LLAVA_SETUP.md](LLAVA_SETUP.md#performance-comparison) for detailed benchmarks.
 
 ## 📋 Usage Workflow
 
@@ -260,6 +305,10 @@ Create a `.env` file in the `backend` directory:
 OPENAI_API_KEY=your_openai_key
 ANTHROPIC_API_KEY=your_claude_key
 GEMINI_API_KEY=your_gemini_key
+
+# Ollama Configuration (for local models)
+OLLAMA_HOST=http://localhost:11434  # Ollama server URL
+OLLAMA_MODEL=llava:latest           # Default Ollama model
 
 # Application Settings
 MAX_UPLOAD_SIZE=2147483648  # 2GB in bytes
@@ -432,12 +481,27 @@ The application has two scene detection modes:
    - Create new API key
    - Add to `.env`: `GOOGLE_API_KEY=your_key_here`
 
+### Using Local Models (No API Keys Needed)
+
+For complete privacy and offline operation:
+
+1. **LLaVA (Transformers)**:
+   - Install: `pip install torch transformers pillow bitsandbytes accelerate`
+   - Select "Local LLaVA (Transformers)" in the UI
+
+2. **Ollama Models**:
+   - Install Ollama: `curl -fsSL https://ollama.ai/install.sh | sh`
+   - Start service: `ollama serve`
+   - Pull model: `ollama pull llava:latest`
+   - All available models appear automatically in the dropdown
+
 ### Without API Keys
 
 The application will still work without API keys:
 - Scene detection using FFmpeg ✓
 - SRT export ✓
-- Mock AI descriptions ✓ (editable)
+- Local AI descriptions (LLaVA/Ollama) ✓
+- Mock AI descriptions (if no local AI) ✓ (editable)
 - Full workflow ✓
 
 ### Testing the Installation

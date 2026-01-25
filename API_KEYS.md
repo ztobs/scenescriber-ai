@@ -59,11 +59,24 @@ SceneScriber AI supports multiple AI providers for generating scene descriptions
    GOOGLE_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    ```
 
-### 4. **Local LLaVA** (Future)
+### 4. **Local LLaVA (Transformers)**
 - **Privacy-focused**, no API calls
 - **Free**, runs locally
 - **Slower** processing
-- *Not yet implemented*
+- Requires: `pip install torch transformers pillow bitsandbytes accelerate`
+
+### 5. **Ollama Models** ✨ NEW!
+- **Privacy-focused**, no API calls
+- **Free**, runs locally
+- **Multiple model options** (llava, bakllava, etc.)
+- **Automatic detection** of all available models
+- Requires: Ollama installed and running
+
+**Setup:**
+1. Install Ollama: `curl -fsSL https://ollama.ai/install.sh | sh`
+2. Start service: `ollama serve`
+3. Pull model: `ollama pull llava:latest`
+4. All models appear automatically in the dropdown
 
 ## 💰 Cost Estimation
 
@@ -72,8 +85,9 @@ SceneScriber AI supports multiple AI providers for generating scene descriptions
 | OpenAI | $0.05-0.15 | $5 free credit |
 | Claude | $0.03-0.10 | Limited free tier |
 | Gemini | $0.01-0.05 | Generous free tier |
+| **LLaVA/Ollama** | **$0.00** | **Always free** |
 
-**Tip:** Start with Gemini's free tier for testing.
+**Tip:** Start with Gemini's free tier for testing, or use LLaVA/Ollama for completely free, private processing.
 
 ## ⚙️ Configuration File
 
@@ -116,10 +130,11 @@ DEFAULT_AI_MODEL=openai     # openai, claude, gemini
 The application works without API keys:
 - ✅ Scene detection (FFmpeg)
 - ✅ SRT export
-- ✅ Mock AI descriptions (editable)
+- ✅ **Local AI descriptions** (LLaVA/Ollama) ✨ NEW!
+- ✅ Mock AI descriptions (if no local AI available) (editable)
 - ✅ Full workflow
 
-You'll see warnings in the UI about missing API keys, but all features except real AI descriptions will work.
+You'll see warnings in the UI about missing API keys for cloud providers, but all features including **real AI descriptions via local models** will work.
 
 ## 🚨 Troubleshooting
 
@@ -127,6 +142,7 @@ You'll see warnings in the UI about missing API keys, but all features except re
 - Check `.env` file exists in `backend/`
 - Verify API keys are correct
 - Restart the backend server
+- **For local models**: Check LLaVA/Ollama installation
 
 ### "API key invalid"
 - Regenerate the API key
@@ -137,6 +153,18 @@ You'll see warnings in the UI about missing API keys, but all features except re
 - Wait before trying again
 - Consider upgrading your plan
 - Use a different provider
+- **Switch to local models** (LLaVA/Ollama) for unlimited usage
+
+### "Ollama models not appearing"
+- Ensure Ollama is running: `ollama serve`
+- Check connection: `curl http://localhost:11434/api/tags`
+- Verify models are pulled: `ollama list`
+- Restart SceneScriber AI backend
+
+### "LLaVA dependencies not installed"
+- Install: `pip install torch transformers pillow bitsandbytes accelerate`
+- Check GPU drivers (for NVIDIA)
+- Verify Python version (3.9+)
 
 ## 📞 Support
 
@@ -144,6 +172,11 @@ For API key issues:
 - OpenAI: https://help.openai.com/
 - Anthropic: https://support.anthropic.com/
 - Google: https://developers.google.com/ai
+
+For local model issues:
+- LLaVA: https://github.com/haotian-liu/LLaVA
+- Ollama: https://github.com/ollama/ollama
+- PyTorch: https://pytorch.org
 
 For application issues:
 - Check the logs: `backend/scenescriber.log`
