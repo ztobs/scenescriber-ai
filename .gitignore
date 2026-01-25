@@ -83,10 +83,12 @@ backend/keyframes/*
 *.tmp
 *.temp
 *.jpg
-*.png
 *.jpeg
 keyframe_*
 frame_*
+
+# Keep documentation screenshots
+!docs/screenshot-*.png
 
 # ======================
 # 🔐 Secrets

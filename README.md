@@ -286,6 +286,32 @@ Use any vision model supported by Ollama (llava, bakllava, etc.) with automatic 
 
 See [LLAVA_SETUP.md](LLAVA_SETUP.md#performance-comparison) for detailed benchmarks.
 
+## 📸 Screenshots
+
+### 1. Upload Screen
+![Upload Video](docs/screenshot-1-upload.png)
+Clean drag-and-drop interface for uploading videos with format support information.
+
+### 2. Configuration Screen
+![Configure Analysis](docs/screenshot-2-configuration.png)
+Set analysis parameters including theme, detection sensitivity, AI model selection, and description length preferences.
+
+### 3. Processing Progress
+![Processing Video](docs/screenshot-2-processing.png)
+Real-time progress tracking during scene detection and AI description generation.
+
+### 4. Review & Edit Scenes
+![Review & Edit](docs/screenshot-3-review.png)
+Interactive scene review interface with built-in video player, keyframes, and the ability to edit AI-generated descriptions.
+
+### 5. Description Editing (Fixed Feature)
+![Edit Description](docs/screenshot-4-editing.png)
+Edit individual scene descriptions with Save/Cancel options. The editing feature now works perfectly with query parameters!
+
+### 6. Export Complete
+![Export SRT](docs/screenshot-5-export.png)
+Final export screen with SRT file download and integration guides for popular video editing software (DaVinci Resolve, Premiere Pro, Final Cut Pro, VLC).
+
 ## 📋 Usage Workflow
 
 1. **Upload Video**: Drag and drop or select a video file (MP4, MOV, MKV, AVI, WebM)
