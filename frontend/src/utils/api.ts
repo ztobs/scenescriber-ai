@@ -67,9 +67,11 @@ export const videoApi = {
     sceneId: number,
     description: string
   ): Promise<void> => {
-    await api.put(`/scenes/${sceneId}`, {
-      job_id: jobId,
-      description,
+    await api.put(`/scenes/${sceneId}`, null, {
+      params: {
+        job_id: jobId,
+        description,
+      },
     });
   },
 

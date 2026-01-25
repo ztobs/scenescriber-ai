@@ -7,7 +7,7 @@ from typing import Optional
 from pathlib import Path
 from dotenv import load_dotenv
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -548,9 +548,9 @@ async def export_srt(job_id: str):
 
 @app.put("/api/scenes/{scene_id}")
 async def update_scene_description(
-    job_id: str,
     scene_id: int,
-    description: str
+    job_id: str = Query(..., description="Job ID"),
+    description: str = Query(..., description="New description text")
 ):
     """Update description for a specific scene.
     
