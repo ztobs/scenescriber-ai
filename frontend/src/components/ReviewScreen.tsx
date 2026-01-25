@@ -18,6 +18,9 @@ import {
   ListItem,
   ListItemText,
   Slider,
+  Dialog,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -42,6 +45,7 @@ export const ReviewScreen: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [selectedKeyframe, setSelectedKeyframe] = useState<string | null>(null);
   const playerRef = useRef<any>(null);
 
   const handleEditClick = (sceneId: number, currentDescription: string) => {
@@ -402,22 +406,41 @@ export const ReviewScreen: React.FC = () => {
                       Keyframes ({selectedScene.keyframes.length})
                     </Typography>
                     <Grid container spacing={2}>
-                      {selectedScene.keyframes.map((_, index) => (
+                      {selectedScene.keyframes.map((keyframeUrl, index) => (
                         <Grid item xs={4} key={index}>
                           <Paper
                             variant="outlined"
                             sx={{
-                              p: 1,
+                              p: 0,
                               textAlign: 'center',
                               height: 120,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
+                              overflow: 'hidden',
+                              bgcolor: 'black',
+                              cursor: 'pointer',
+                              '&:hover': {
+                                opacity: 0.8,
+                                borderColor: 'primary.main',
+                              }
                             }}
+                            onClick={() => setSelectedKeyframe(keyframeUrl)}
                           >
-                            <Typography variant="caption" color="text.secondary">
-                              Frame {index + 1}
-                            </Typography>
+                             <img 
+                               src={keyframeUrl} 
+                               alt={`Frame ${index + 1}`}
+                               style={{ 
+                                 width: '100%', 
+                                 height: '100%', 
+                                 objectFit: 'contain' 
+                               }}
+                               onError={(e) => {
+                                 // Fallback if image fails to load
+                                 (e.target as HTMLImageElement).style.display = 'none';
+                                 (e.target as HTMLImageElement).parentElement!.innerText = `Frame ${index + 1}`;
+                               }}
+                             />
                           </Paper>
                         </Grid>
                       ))}
@@ -481,6 +504,29 @@ export const ReviewScreen: React.FC = () => {
           This SRT format is compatible with DaVinci Resolve, Premiere Pro, Final Cut Pro, and VLC.
         </Typography>
       </Box>
+
+      {/* Keyframe Preview Dialog */}
+      <Dialog
+        open={!!selectedKeyframe}
+        onClose={() => setSelectedKeyframe(null)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogContent sx={{ p: 0, bgcolor: 'black', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+          {selectedKeyframe && (
+            <img
+              src={selectedKeyframe}
+              alt="Full size keyframe"
+              style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain' }}
+            />
+          )}
+        </DialogContent>
+        <DialogActions sx={{ bgcolor: 'black', p: 2 }}>
+          <Button onClick={() => setSelectedKeyframe(null)} variant="contained" color="primary">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 };

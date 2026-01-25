@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from .models import AnalysisRequest, AnalysisResponse, Scene, ProjectConfig
 from .scene_detector_simple import SimpleSceneDetector
@@ -47,8 +48,8 @@ except Exception as e:
     logger.warning(f"Unexpected error checking LLaVA dependencies: {e}")
 
 # Check for Ollama availability
+import requests
 try:
-    import requests
     OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
     # Quick check if Ollama is running
     requests.get(OLLAMA_HOST, timeout=1)
@@ -88,6 +89,13 @@ app = FastAPI(
     description="API for detecting scenes in videos and generating AI descriptions",
     version="0.1.0"
 )
+
+# Create keyframes directory if not exists
+keyframes_dir = Path("keyframes")
+keyframes_dir.mkdir(exist_ok=True)
+
+# Mount keyframes directory
+app.mount("/api/keyframes", StaticFiles(directory="keyframes"), name="keyframes")
 
 # Get CORS origins from environment
 cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001').split(',')
@@ -398,19 +406,32 @@ def process_video_analysis(
         processing_jobs[job_id]["message"] = f"Detected {len(scenes)} scenes. Extracting keyframes..."
         
         # Step 2: Extract keyframes
-        scenes = detector.extract_keyframes(video_path, scenes, frames_per_scene=3)
+        # Use absolute path for backend extraction
+        keyframes_output_dir = os.path.abspath("keyframes")
+        scenes = detector.extract_keyframes(video_path, scenes, frames_per_scene=3, output_dir=keyframes_output_dir)
         
         # Update progress
         processing_jobs[job_id]["progress"] = 60
         processing_jobs[job_id]["message"] = "Generating AI descriptions..."
         
         # Step 3: Generate AI descriptions
+        # AIDescriber uses the local file paths
         describer = AIDescriber(model=ai_model)
         scenes = describer.generate_descriptions(
             scenes=scenes,
             theme=theme,
             description_length=description_length
         )
+        
+        # Step 4: Convert file paths to URLs for frontend
+        for scene in scenes:
+            if "keyframes" in scene:
+                new_keyframes = []
+                for kf in scene["keyframes"]:
+                    filename = os.path.basename(kf)
+                    # Create URL path
+                    new_keyframes.append(f"/api/keyframes/{filename}")
+                scene["keyframes"] = new_keyframes
         
         # Update job with results
         processing_jobs[job_id]["status"] = "completed"

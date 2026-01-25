@@ -241,13 +241,14 @@ class SimpleSceneDetector:
                 "theme_applied": None
             }]
     
-    def extract_keyframes(self, video_path: str, scenes: List[Dict[str, Any]], frames_per_scene: int = 3) -> List[Dict[str, Any]]:
+    def extract_keyframes(self, video_path: str, scenes: List[Dict[str, Any]], frames_per_scene: int = 3, output_dir: str = None) -> List[Dict[str, Any]]:
         """Extract keyframes using ffmpeg.
         
         Args:
             video_path: Path to video file
             scenes: List of scene dictionaries
             frames_per_scene: Number of frames to extract per scene
+            output_dir: Directory to save keyframes (optional, defaults to temp)
             
         Returns:
             Updated scenes with keyframe paths
@@ -274,9 +275,17 @@ class SimpleSceneDetector:
             
             for i, frame_time in enumerate(frame_times[:frames_per_scene]):
                 try:
-                    # Create temp file for frame
-                    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                        frame_file = tmp.name
+                    if output_dir:
+                        # Use provided directory
+                        filename = f"scene_{scene['scene_id']}_frame_{i}.jpg"
+                        # Make filename unique to avoid collisions if multiple jobs run
+                        import uuid
+                        filename = f"{uuid.uuid4()}_{filename}"
+                        frame_file = os.path.join(output_dir, filename)
+                    else:
+                        # Create temp file for frame
+                        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+                            frame_file = tmp.name
                     
                     # Extract frame using ffmpeg
                     cmd = [

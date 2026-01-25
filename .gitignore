@@ -75,6 +75,10 @@ backend/uploads/*
 backend/exports/*
 !backend/exports/.gitkeep
 
+# Keyframes
+backend/keyframes/*
+!backend/keyframes/.gitkeep
+
 # Temporary files
 *.tmp
 *.temp
