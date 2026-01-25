@@ -131,12 +131,12 @@ export const ReviewScreen: React.FC = () => {
 
       <Grid container spacing={4}>
         <Grid item xs={12} md={4}>
-          <Card variant="outlined" sx={{ height: '100%' }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Scene List ({scenes.length})
-              </Typography>
-              <List sx={{ maxHeight: 400, overflow: 'auto' }}>
+           <Card variant="outlined" sx={{ maxHeight: '70vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+             <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 2, overflow: 'hidden' }}>
+               <Typography variant="h6" gutterBottom sx={{ flexShrink: 0 }}>
+                 Scene List ({scenes.length})
+               </Typography>
+                <List sx={{ flex: 1, overflow: 'auto' }}>
                 {scenes.map((scene, index) => (
                   <React.Fragment key={scene.scene_id}>
                      <ListItem
