@@ -73,7 +73,7 @@ export const ReviewScreen: React.FC = () => {
   const handleSeekToScene = () => {
     if (playerRef.current && selectedScene) {
       playerRef.current.seekTo(selectedScene.start_time, 'seconds');
-      setIsPlaying(true);
+      setIsPlaying(true); // This is for the "Play Scene" button, so it should play
     }
   };
 
@@ -139,20 +139,26 @@ export const ReviewScreen: React.FC = () => {
               <List sx={{ maxHeight: 400, overflow: 'auto' }}>
                 {scenes.map((scene, index) => (
                   <React.Fragment key={scene.scene_id}>
-                    <ListItem
-                      button
-                      selected={index === selectedSceneIndex}
-                      onClick={() => setSelectedSceneIndex(index)}
-                      sx={{
-                        borderRadius: 1,
-                        mb: 1,
-                        '&.Mui-selected': {
-                          bgcolor: 'primary.50',
-                          borderLeft: '4px solid',
-                          borderColor: 'primary.main',
-                        },
-                      }}
-                    >
+                     <ListItem
+                       button
+                       selected={index === selectedSceneIndex}
+                       onClick={() => {
+                         setSelectedSceneIndex(index);
+                         if (playerRef.current) {
+                           playerRef.current.seekTo(scene.start_time, 'seconds');
+                           // Don't auto-play, just seek
+                         }
+                       }}
+                       sx={{
+                         borderRadius: 1,
+                         mb: 1,
+                         '&.Mui-selected': {
+                           bgcolor: 'primary.50',
+                           borderLeft: '4px solid',
+                           borderColor: 'primary.main',
+                         },
+                       }}
+                     >
                       <ListItemText
                         primary={
                           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -310,13 +316,13 @@ export const ReviewScreen: React.FC = () => {
                                        bgcolor: isSelected ? 'primary.dark' : 'grey.600',
                                      },
                                    }}
-                                   onClick={() => {
-                                     setSelectedSceneIndex(index);
-                                     if (playerRef.current) {
-                                       playerRef.current.seekTo(scene.start_time, 'seconds');
-                                       setIsPlaying(true);
-                                     }
-                                   }}
+                                    onClick={() => {
+                                      setSelectedSceneIndex(index);
+                                      if (playerRef.current) {
+                                        playerRef.current.seekTo(scene.start_time, 'seconds');
+                                        // Don't auto-play, just seek
+                                      }
+                                    }}
                                    title={`Scene ${scene.scene_id}: ${formatTimestamp(scene.start_time)}`}
                                  />
                                );
