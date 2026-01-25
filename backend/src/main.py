@@ -31,11 +31,26 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 
+# Check if LLaVA dependencies are available
+try:
+    import torch
+    import transformers
+    import bitsandbytes
+    import accelerate
+    LLAVA_AVAILABLE = True
+except ImportError as e:
+    LLAVA_AVAILABLE = False
+    logger.warning(f"LLaVA dependencies check failed: {e}")
+    logger.warning("Install with: pip install torch transformers bitsandbytes accelerate")
+except Exception as e:
+    LLAVA_AVAILABLE = False
+    logger.warning(f"Unexpected error checking LLaVA dependencies: {e}")
+
 AI_PROVIDERS_AVAILABLE = {
     'openai': bool(OPENAI_API_KEY),
     'claude': bool(ANTHROPIC_API_KEY),
     'gemini': bool(GOOGLE_API_KEY),
-    'llava': False  # Local model not implemented yet
+    'llava': LLAVA_AVAILABLE  # Available if torch and transformers installed
 }
 
 logger.info(f"AI Providers available: {AI_PROVIDERS_AVAILABLE}")
@@ -109,9 +124,9 @@ async def get_config():
                 "key_configured": bool(GOOGLE_API_KEY),
             },
             "llava": {
-                "available": False,
+                "available": LLAVA_AVAILABLE,
                 "name": "Local LLaVA",
-                "description": "Privacy-focused, no API costs (not implemented)",
+                "description": "Privacy-focused, no API costs, requires torch and transformers",
                 "needs_api_key": False,
                 "key_configured": False,
             }

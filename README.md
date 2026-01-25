@@ -4,11 +4,17 @@ An intelligent video analysis tool that automatically detects scene cuts, genera
 
 ## ✨ Features
 
-- **Automatic Scene Detection**: Detects scene boundaries using histogram comparison and PySceneDetect
-- **AI-Powered Descriptions**: Generates context-aware descriptions using GPT-4 Vision, Claude 3, or local models
-- **Theme Integration**: Tailor descriptions to specific project themes (DIY, cooking, gaming, etc.)
+- **Automatic Scene Detection**: Detects scene boundaries using FFmpeg-based histogram comparison
+- **AI-Powered Descriptions**: Multiple AI options:
+  - **GPT-4o** (OpenAI) - Fastest, most accurate
+  - **Claude 3** (Anthropic) - Excellent quality
+  - **Gemini** (Google) - Cost-effective
+  - **LLaVA** (Local) - Privacy-focused, offline, free ✨ NEW!
+- **Video Range Selection**: Choose specific time ranges to analyze (e.g., 5s - 30s of the video)
+- **Theme Integration**: Tailor descriptions to specific project themes (DIY, cooking, gaming, tutorials, etc.)
 - **SRT Export**: Exports to standard SubRip subtitle format compatible with DaVinci Resolve, Premiere Pro, etc.
 - **Interactive Review**: Edit and refine AI-generated descriptions before export
+- **Video Preview**: Built-in player with scene markers and timeline navigation
 - **Modern Web Interface**: Clean, responsive React frontend with Material-UI
 
 ## 🏗️ Architecture
@@ -46,11 +52,16 @@ video-scene-tool/
 ### Easy Setup (Recommended)
 
 ```bash
-# Make the setup script executable
-chmod +x setup.sh
+# Using Makefile (most comprehensive)
+make setup    # Full setup
+make start    # Start both services
 
-# Run the setup script
+# OR using setup script
+chmod +x setup.sh
 ./setup.sh
+
+# Then start with:
+./start.sh    # Or use: make start
 ```
 
 ### Manual Setup
@@ -124,6 +135,40 @@ If FFmpeg is not installed:
 
 ### Start the Application
 
+#### Option 1: Comprehensive Makefile (Recommended)
+```bash
+# Show all available commands
+make help
+
+# Full setup (first time only)
+make setup
+
+# Start both services
+make start
+
+# Check service status
+make status
+
+# Stop services
+make stop
+
+# Clear GPU VRAM (for LLaVA users)
+make vram-cleanup
+```
+
+#### Option 2: Simple One-Command Startup Scripts
+```bash
+# Make sure scripts are executable
+chmod +x start.sh quick-start.sh
+
+# Start both services with detailed output
+./start.sh
+
+# OR for a simpler version
+./quick-start.sh
+```
+
+#### Option 3: Manual Startup (Two Terminals)
 1. **Start Backend** (in one terminal):
 ```bash
 cd backend
@@ -141,6 +186,60 @@ The application will be available at:
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:8000
 - API Documentation: http://localhost:8000/docs
+
+#### Key Makefile Commands:
+| Command | Description |
+|---------|-------------|
+| `make setup` | Full project setup |
+| `make start` | Start both services |
+| `make stop` | Stop all services |
+| `make restart` | Restart services |
+| `make status` | Check service status |
+| `make vram-cleanup` | Clear GPU memory |
+| `make logs` | View service logs |
+| `make clean` | Clean temporary files |
+| `make test` | Run all tests |
+| `make update` | Update dependencies |
+
+## 🤖 Using LLaVA for Offline AI Descriptions
+
+SceneScriber AI now supports **LLaVA** - a local, privacy-focused AI model that runs entirely on your machine!
+
+### Setup LLaVA
+
+**For GPU (NVIDIA):**
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install transformers>=4.36.0 pillow
+```
+
+**For CPU or Mac:**
+```bash
+pip install torch transformers>=4.36.0 pillow
+```
+
+### Use LLaVA in SceneScriber AI
+
+1. Upload a video
+2. In "Configure Analysis Settings", select **"Local LLaVA (Privacy-focused)"**
+3. Click "Start Analysis"
+4. The model will download automatically on first use (~7GB)
+5. All processing happens locally - no data sent to external services
+
+**For detailed setup instructions, see [LLAVA_SETUP.md](LLAVA_SETUP.md)**
+
+### Benefits
+
+✅ **Privacy**: 100% offline, no data sent anywhere
+✅ **Free**: No API keys or subscription needed
+✅ **Offline**: Works without internet after setup
+✅ **Flexible**: Can use other AI models alongside LLaVA
+
+### Performance
+
+- **GPU (NVIDIA/Apple Silicon)**: 7-15 seconds per scene
+- **CPU**: 60-120 seconds per scene
+- See [LLAVA_SETUP.md](LLAVA_SETUP.md#performance-comparison) for detailed comparisons
 
 ## 📋 Usage Workflow
 

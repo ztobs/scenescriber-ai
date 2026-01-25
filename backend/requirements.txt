@@ -1,6 +1,6 @@
 # Core dependencies
-opencv-python>=4.8.0
-numpy>=1.24.0
+opencv-python>=4.8.0,<4.10.0  # Compatible with numpy<2.0.0
+numpy>=1.24.0,<2.0.0  # Required for compatibility with other packages
 ffmpeg-python>=0.2.0
 Pillow>=10.0.0
 requests>=2.31.0
@@ -16,10 +16,15 @@ fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 python-multipart>=0.0.6
 
-# Database
-sqlite3
+# Database (sqlite3 is part of Python standard library)
 
 # Optional AI providers (choose one or more)
 openai>=1.0.0  # For GPT-4 Vision
 anthropic>=0.7.0  # For Claude 3
 google-generativeai>=0.3.0  # For Gemini
+
+# Local LLaVA model support (for offline AI processing)
+torch>=2.0.0  # Required for LLaVA
+transformers>=4.36.0  # Required for LLaVA support
+bitsandbytes>=0.41.0  # Required for 4-bit/8-bit quantization (for 8GB GPUs)
+accelerate>=0.24.0  # Required for model loading optimizations and device mapping

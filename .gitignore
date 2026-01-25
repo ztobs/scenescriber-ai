@@ -154,3 +154,29 @@ docker-compose.yml
 # Keep empty directories
 !backend/uploads/.gitkeep
 !backend/exports/.gitkeep
+
+# ======================
+# 🗑️ Runtime & Temporary
+# ======================
+
+# PID files
+.pid
+*.pid
+.backend.pid
+.frontend.pid
+
+# Service logs
+backend.log
+frontend.log
+setup.log
+
+# Temporary test scripts & docs
+test-startup.sh
+test_llava*.py
+backend/check_imports.py
+*_SUMMARY.md
+VRAM_OPTIMIZATION.md
+QUICK_START_8GB.md
+
+# Artifacts
+backend/=4.36.0
