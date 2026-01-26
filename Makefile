@@ -145,7 +145,7 @@ start-backend:
 	cd $(BACKEND_DIR) && \
 	(uvicorn src.main:app --reload --port $(BACKEND_PORT) --host 0.0.0.0 > ../$(BACKEND_LOG) 2>&1 & echo $$! > ../$(BACKEND_PID_FILE))
 	@sleep 3
-	@if curl -s http://localhost:$(BACKEND_PORT) > /dev/null; then \
+	@if curl -s -f http://localhost:$(BACKEND_PORT)/ > /dev/null 2>&1; then \
 		echo "✅ Backend is running"; \
 	else \
 		echo "❌ Backend failed to start. Check $(BACKEND_LOG)"; \
