@@ -22,15 +22,17 @@ load_dotenv()
 
 # Configure logging
 logging.basicConfig(
-    level=os.getenv('LOG_LEVEL', 'INFO'),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
 # Check for API keys
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_COMPATIBLE_API_BASE = os.getenv("OPENAI_COMPATIBLE_API_BASE")
+OPENAI_COMPATIBLE_API_KEY = os.getenv("OPENAI_COMPATIBLE_API_KEY")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Check if LLaVA dependencies are available
 try:
@@ -38,6 +40,7 @@ try:
     import transformers
     import bitsandbytes
     import accelerate
+
     LLAVA_AVAILABLE = True
 except ImportError as e:
     LLAVA_AVAILABLE = False
@@ -49,6 +52,7 @@ except Exception as e:
 
 # Check for Ollama availability
 import requests
+
 try:
     OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
     # Quick check if Ollama is running
@@ -56,16 +60,17 @@ try:
     OLLAMA_AVAILABLE = True
 except Exception:
     OLLAMA_AVAILABLE = False
-    OLLAMA_HOST = "http://localhost:11434" # Default fallback
+    OLLAMA_HOST = "http://localhost:11434"  # Default fallback
     # Don't log warning as it's optional
+
 
 def get_ollama_models():
     """Fetch available models from Ollama."""
     if not OLLAMA_AVAILABLE:
         return []
-    
+
     try:
-        response = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=2)
+        response = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
         if response.status_code == 200:
             data = response.json()
             return data.get("models", [])
@@ -73,12 +78,83 @@ def get_ollama_models():
         logger.warning(f"Failed to fetch Ollama models: {e}")
     return []
 
+
+def get_openai_models(provider_type="openai"):
+    """Fetch available models from OpenAI or OpenAI-compatible API.
+
+    Args:
+        provider_type: Either "openai" or "openai_compatible"
+
+    Returns:
+        List of available models
+    """
+    if provider_type == "openai":
+        api_key = OPENAI_API_KEY
+        api_base = "https://api.openai.com/v1"
+        api_version = None
+    elif provider_type == "openai_compatible":
+        api_key = OPENAI_COMPATIBLE_API_KEY
+        api_base = OPENAI_COMPATIBLE_API_BASE
+        api_version = os.getenv("OPENAI_COMPATIBLE_API_VERSION")
+    else:
+        return []
+
+    if not api_key:
+        return []
+
+    try:
+        headers = {"Authorization": f"Bearer {api_key}"}
+
+        # Add API version header for Azure OpenAI
+        if api_version:
+            headers["api-version"] = api_version
+
+        # Try to fetch models list
+        response = requests.get(f"{api_base}/models", headers=headers, timeout=30)
+
+        if response.status_code == 200:
+            data = response.json()
+            models = data.get("data", [])
+
+            # Filter for vision-capable models and sort by capability
+            vision_models = []
+            for model in models:
+                model_id = model.get("id", "")
+                # Include GPT-4 Vision models and other vision-capable models
+                # For OpenAI-compatible, we might not know model names, so include all
+                if provider_type == "openai_compatible" or any(
+                    pattern in model_id.lower()
+                    for pattern in ["gpt-4", "gpt-4o", "gpt-4-vision", "gpt-4-turbo", "gpt-4o-mini"]
+                ):
+                    vision_models.append(
+                        {
+                            "id": model_id,
+                            "name": model_id,
+                            "description": f"{provider_type.replace('_', ' ').title()} {model_id}",
+                            "capabilities": model.get("capabilities", []),
+                            "provider": provider_type,
+                        }
+                    )
+
+            return vision_models
+        else:
+            logger.warning(
+                f"{provider_type} models API returned status {response.status_code}: {response.text}"
+            )
+            return []
+
+    except Exception as e:
+        logger.warning(f"Failed to fetch {provider_type} models: {e}")
+        return []
+
+
 AI_PROVIDERS_AVAILABLE = {
-    'openai': bool(OPENAI_API_KEY),
-    'claude': bool(ANTHROPIC_API_KEY),
-    'gemini': bool(GOOGLE_API_KEY),
-    'llava': LLAVA_AVAILABLE,  # Available if torch and transformers installed
-    'ollama': OLLAMA_AVAILABLE
+    "openai": bool(OPENAI_API_KEY),
+    "openai_compatible": bool(OPENAI_COMPATIBLE_API_BASE and OPENAI_COMPATIBLE_API_KEY),
+    "claude": bool(ANTHROPIC_API_KEY),
+    "gemini": bool(GOOGLE_API_KEY),
+    "llava": LLAVA_AVAILABLE,  # Available if torch and transformers installed
+    "ollama": OLLAMA_AVAILABLE,
 }
 
 logger.info(f"AI Providers available: {AI_PROVIDERS_AVAILABLE}")
@@ -87,7 +163,7 @@ logger.info(f"AI Providers available: {AI_PROVIDERS_AVAILABLE}")
 app = FastAPI(
     title="Video Scene AI Analyzer API",
     description="API for detecting scenes in videos and generating AI descriptions",
-    version="0.1.0"
+    version="0.1.0",
 )
 
 # Create keyframes directory if not exists
@@ -98,7 +174,7 @@ keyframes_dir.mkdir(exist_ok=True)
 app.mount("/api/keyframes", StaticFiles(directory="keyframes"), name="keyframes")
 
 # Get CORS origins from environment
-cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001').split(',')
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001").split(",")
 
 # Add CORS middleware
 app.add_middleware(
@@ -128,22 +204,15 @@ async def root():
             "scenes": "/api/scenes/{job_id}",
             "export": "/api/export/srt/{job_id}",
             "config": "/api/config",
-        }
+        },
     }
 
 
 @app.get("/api/config")
 async def get_config():
     """Get application configuration and available AI providers."""
-    
+
     providers = {
-        "openai": {
-            "available": bool(OPENAI_API_KEY),
-            "name": "OpenAI GPT-4 Vision",
-            "description": "Best quality, most expensive",
-            "needs_api_key": True,
-            "key_configured": bool(OPENAI_API_KEY),
-        },
         "claude": {
             "available": bool(ANTHROPIC_API_KEY),
             "name": "Anthropic Claude 3",
@@ -164,8 +233,58 @@ async def get_config():
             "description": "Privacy-focused, no API costs, requires torch and transformers",
             "needs_api_key": False,
             "key_configured": False,
-        }
+        },
     }
+
+    # Add OpenAI models dynamically (only if API key is configured)
+    if OPENAI_API_KEY:
+        openai_models = get_openai_models("openai")
+        if openai_models:
+            for model in openai_models:
+                model_id = model.get("id", "")
+                # Create a unique key for each model
+                key = f"openai/{model_id}"
+                providers[key] = {
+                    "available": True,
+                    "name": f"{model_id}",
+                    "description": f"OpenAI {model_id}",
+                    "needs_api_key": True,
+                    "key_configured": True,
+                }
+        else:
+            # Fallback to default OpenAI provider if models fetch fails
+            providers["openai/gpt-4o"] = {
+                "available": True,
+                "name": "GPT-4o",
+                "description": "OpenAI GPT-4o - Best quality, most expensive",
+                "needs_api_key": True,
+                "key_configured": True,
+            }
+
+    # Add OpenAI-compatible models dynamically (only if endpoint and key are configured)
+    if OPENAI_COMPATIBLE_API_BASE and OPENAI_COMPATIBLE_API_KEY:
+        compatible_models = get_openai_models("openai_compatible")
+        if compatible_models:
+            for model in compatible_models:
+                model_id = model.get("id", "")
+                # Create a unique key for each model
+                key = f"openai_compatible/{model_id}"
+                providers[key] = {
+                    "available": True,
+                    "name": f"{model_id}",
+                    "description": f"OpenAI-compatible {model_id}",
+                    "needs_api_key": True,
+                    "key_configured": True,
+                }
+        else:
+            # Fallback to generic OpenAI-compatible provider if models fetch fails
+            providers["openai_compatible/gpt-4"] = {
+                "available": True,
+                "name": "GPT-4 (OpenAI-compatible)",
+                "description": "Custom OpenAI-compatible endpoint",
+                "needs_api_key": True,
+                "key_configured": True,
+            }
 
     # Add Ollama models dynamically
     if OLLAMA_AVAILABLE:
@@ -182,63 +301,63 @@ async def get_config():
                 "key_configured": False,
             }
     else:
-         # Optional: Add a placeholder if Ollama is not available but user wants to know
-         providers["ollama"] = {
+        # Optional: Add a placeholder if Ollama is not available but user wants to know
+        providers["ollama"] = {
             "available": False,
             "name": "Ollama (Not Detected)",
             "description": "Ensure Ollama is running at localhost:11434",
             "needs_api_key": False,
             "key_configured": False,
-         }
+        }
 
     return {
         "ai_providers": providers,
         "default_settings": {
-            "detection_sensitivity": os.getenv('DEFAULT_SENSITIVITY', 'medium'),
-            "min_scene_duration": float(os.getenv('DEFAULT_MIN_SCENE_DURATION', '2.0')),
-            "ai_model": os.getenv('DEFAULT_AI_MODEL', 'openai'),
-            "description_length": os.getenv('DEFAULT_DESCRIPTION_LENGTH', 'medium'),
+            "detection_sensitivity": os.getenv("DEFAULT_SENSITIVITY", "medium"),
+            "min_scene_duration": float(os.getenv("DEFAULT_MIN_SCENE_DURATION", "2.0")),
+            "ai_model": os.getenv("DEFAULT_AI_MODEL", "openai"),
+            "description_length": os.getenv("DEFAULT_DESCRIPTION_LENGTH", "medium"),
         },
         "features": {
             "scene_detection": True,
             "ai_description": any(AI_PROVIDERS_AVAILABLE.values()),
             "srt_export": True,
             "theme_support": True,
-        }
+        },
     }
 
 
 @app.post("/api/upload")
 async def upload_video(file: UploadFile = File(...)):
     """Upload video file for processing.
-    
+
     Args:
         file: Video file (MP4, MOV, MKV, AVI supported)
-        
+
     Returns:
         Upload information including file path
     """
     logger.info(f"Uploading video: {file.filename}")
-    
+
     # Validate file type
     allowed_extensions = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
     filename = file.filename or "video.mp4"
     file_extension = Path(filename).suffix.lower()
-    
+
     if file_extension not in allowed_extensions:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type. Allowed: {', '.join(allowed_extensions)}"
+            detail=f"Unsupported file type. Allowed: {', '.join(allowed_extensions)}",
         )
-    
+
     # Create uploads directory if not exists
     upload_dir = Path("uploads")
     upload_dir.mkdir(exist_ok=True)
-    
+
     # Generate unique filename
     file_id = str(uuid.uuid4())
     file_path = upload_dir / f"{file_id}{file_extension}"
-    
+
     # Save file
     try:
         content = await file.read()
@@ -247,47 +366,43 @@ async def upload_video(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Failed to save file: {e}")
         raise HTTPException(status_code=500, detail="Failed to save uploaded file")
-    
+
     logger.info(f"Video saved to {file_path}")
-    
+
     return {
         "file_id": file_id,
         "filename": file.filename,
         "file_path": str(file_path),
         "file_size": len(content),
-        "message": "Video uploaded successfully"
+        "message": "Video uploaded successfully",
     }
 
 
 @app.get("/api/video/{file_id}")
 async def get_video(file_id: str):
     """Serve uploaded video file for playback.
-    
+
     Args:
         file_id: File ID returned from upload endpoint
-        
+
     Returns:
         Video file stream
     """
     # Find the video file by file_id
     upload_dir = Path("uploads")
     video_files = list(upload_dir.glob(f"{file_id}.*"))
-    
+
     if not video_files:
         raise HTTPException(status_code=404, detail="Video file not found")
-    
+
     video_path = video_files[0]
-    
+
     # Check if file exists
     if not video_path.exists():
         raise HTTPException(status_code=404, detail="Video file not found")
-    
+
     # Return file with appropriate media type
-    return FileResponse(
-        path=video_path,
-        media_type="video/mp4",
-        filename=video_path.name
-    )
+    return FileResponse(path=video_path, media_type="video/mp4", filename=video_path.name)
 
 
 @app.post("/api/analyze")
@@ -300,10 +415,10 @@ async def analyze_video(
     ai_model: str = "openai",
     description_length: str = "medium",
     start_time: Optional[float] = None,
-    end_time: Optional[float] = None
+    end_time: Optional[float] = None,
 ):
     """Start video analysis with scene detection and AI description generation.
-    
+
     Args:
         video_path: Path to uploaded video file
         theme: Optional theme for description generation
@@ -313,29 +428,29 @@ async def analyze_video(
         description_length: Description length ('short', 'medium', 'detailed')
         start_time: Start time in seconds (0 = beginning, None = 0)
         end_time: End time in seconds (None = end of video)
-        
+
     Returns:
         Job information with job_id for status tracking
     """
     logger.info(f"Starting analysis for video: {video_path}")
-    
+
     # Validate video file exists
     video_path_obj = Path(video_path)
     if not video_path_obj.exists():
         raise HTTPException(status_code=404, detail="Video file not found")
-    
+
     # Create job ID
     job_id = str(uuid.uuid4())
-    
+
     # Initialize job status
     processing_jobs[job_id] = {
         "status": "pending",
         "progress": 0,
         "message": "Job created",
         "scenes": [],
-        "error": None
+        "error": None,
     }
-    
+
     # Start background processing
     background_tasks.add_task(
         process_video_analysis,
@@ -347,14 +462,14 @@ async def analyze_video(
         ai_model=ai_model,
         description_length=description_length,
         start_time=start_time,
-        end_time=end_time
+        end_time=end_time,
     )
-    
+
     return {
         "job_id": job_id,
         "status": "processing",
         "message": "Video analysis started in background",
-        "check_status_url": f"/api/status/{job_id}"
+        "check_status_url": f"/api/status/{job_id}",
     }
 
 
@@ -367,7 +482,7 @@ def process_video_analysis(
     ai_model: str,
     description_length: str,
     start_time: Optional[float] = None,
-    end_time: Optional[float] = None
+    end_time: Optional[float] = None,
 ):
     """Background task for video analysis processing."""
     try:
@@ -375,14 +490,13 @@ def process_video_analysis(
         processing_jobs[job_id]["status"] = "processing"
         processing_jobs[job_id]["progress"] = 10
         processing_jobs[job_id]["message"] = "Detecting scenes..."
-        
+
         # Step 1: Detect scenes
         detector = SimpleSceneDetector(
-            sensitivity=detection_sensitivity,
-            min_scene_duration=min_scene_duration
+            sensitivity=detection_sensitivity, min_scene_duration=min_scene_duration
         )
         scenes = detector.detect_scenes(video_path)
-        
+
         # Filter scenes by time range if specified
         if start_time is not None or end_time is not None:
             start = start_time or 0.0
@@ -397,32 +511,34 @@ def process_video_analysis(
                     # Include scenes that overlap with [start_time, end_time]
                     if scene["end_time"] > start and scene["start_time"] < end_time:
                         filtered_scenes.append(scene)
-            
+
             scenes = filtered_scenes
             logger.info(f"Filtered to {len(scenes)} scenes within time range [{start}, {end_time}]")
-        
+
         # Update progress
         processing_jobs[job_id]["progress"] = 40
-        processing_jobs[job_id]["message"] = f"Detected {len(scenes)} scenes. Extracting keyframes..."
-        
+        processing_jobs[job_id][
+            "message"
+        ] = f"Detected {len(scenes)} scenes. Extracting keyframes..."
+
         # Step 2: Extract keyframes
         # Use absolute path for backend extraction
         keyframes_output_dir = os.path.abspath("keyframes")
-        scenes = detector.extract_keyframes(video_path, scenes, frames_per_scene=3, output_dir=keyframes_output_dir)
-        
+        scenes = detector.extract_keyframes(
+            video_path, scenes, frames_per_scene=3, output_dir=keyframes_output_dir
+        )
+
         # Update progress
         processing_jobs[job_id]["progress"] = 60
         processing_jobs[job_id]["message"] = "Generating AI descriptions..."
-        
+
         # Step 3: Generate AI descriptions
         # AIDescriber uses the local file paths
         describer = AIDescriber(model=ai_model)
         scenes = describer.generate_descriptions(
-            scenes=scenes,
-            theme=theme,
-            description_length=description_length
+            scenes=scenes, theme=theme, description_length=description_length
         )
-        
+
         # Step 4: Convert file paths to URLs for frontend
         for scene in scenes:
             if "keyframes" in scene:
@@ -432,15 +548,15 @@ def process_video_analysis(
                     # Create URL path
                     new_keyframes.append(f"/api/keyframes/{filename}")
                 scene["keyframes"] = new_keyframes
-        
+
         # Update job with results
         processing_jobs[job_id]["status"] = "completed"
         processing_jobs[job_id]["progress"] = 100
         processing_jobs[job_id]["message"] = "Analysis completed successfully"
         processing_jobs[job_id]["scenes"] = scenes
-        
+
         logger.info(f"Analysis completed for job {job_id}: {len(scenes)} scenes")
-        
+
     except Exception as e:
         logger.error(f"Analysis failed for job {job_id}: {e}")
         processing_jobs[job_id]["status"] = "failed"
@@ -451,16 +567,16 @@ def process_video_analysis(
 @app.get("/api/status/{job_id}")
 async def get_job_status(job_id: str):
     """Get status of a processing job.
-    
+
     Args:
         job_id: Job ID returned from analyze endpoint
-        
+
     Returns:
         Current job status and progress
     """
     if job_id not in processing_jobs:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
     job = processing_jobs[job_id]
     return {
         "job_id": job_id,
@@ -468,81 +584,73 @@ async def get_job_status(job_id: str):
         "progress": job["progress"],
         "message": job["message"],
         "error": job.get("error"),
-        "has_scenes": len(job.get("scenes", [])) > 0
+        "has_scenes": len(job.get("scenes", [])) > 0,
     }
 
 
 @app.get("/api/scenes/{job_id}")
 async def get_scenes(job_id: str):
     """Get scene data for a completed job.
-    
+
     Args:
         job_id: Job ID returned from analyze endpoint
-        
+
     Returns:
         List of scenes with descriptions and timing
     """
     if job_id not in processing_jobs:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
     job = processing_jobs[job_id]
-    
+
     if job["status"] != "completed":
         raise HTTPException(
-            status_code=400, 
-            detail=f"Job not completed. Current status: {job['status']}"
+            status_code=400, detail=f"Job not completed. Current status: {job['status']}"
         )
-    
-    return {
-        "job_id": job_id,
-        "scenes": job["scenes"],
-        "total_scenes": len(job["scenes"])
-    }
+
+    return {"job_id": job_id, "scenes": job["scenes"], "total_scenes": len(job["scenes"])}
 
 
 @app.get("/api/export/srt/{job_id}")
 async def export_srt(job_id: str):
     """Export scene descriptions as SRT file.
-    
+
     Args:
         job_id: Job ID returned from analyze endpoint
-        
+
     Returns:
         SRT file download
     """
     if job_id not in processing_jobs:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
     job = processing_jobs[job_id]
-    
+
     if job["status"] != "completed":
         raise HTTPException(
-            status_code=400, 
-            detail=f"Job not completed. Current status: {job['status']}"
+            status_code=400, detail=f"Job not completed. Current status: {job['status']}"
         )
-    
+
     # Generate SRT content
     exporter = SRTExporter()
     srt_content = exporter.export_to_srt(job["scenes"])
-    
+
     # Validate SRT format
     if not exporter.validate_srt(srt_content):
         raise HTTPException(status_code=500, detail="Generated SRT content is invalid")
-    
+
     # Save to temporary file
     srt_path = Path(f"exports/{job_id}.srt")
     srt_path.parent.mkdir(exist_ok=True)
-    
+
     try:
         exporter.save_to_file(srt_content, str(srt_path))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save SRT file: {e}")
-    
+
     # Return file for download
     return FileResponse(
-        path=srt_path,
-        filename=f"scenes_{job_id}.srt",
-        media_type="application/x-subrip"
+        path=srt_path, filename=f"scenes_{job_id}.srt", media_type="application/x-subrip"
     )
 
 
@@ -550,29 +658,28 @@ async def export_srt(job_id: str):
 async def update_scene_description(
     scene_id: int,
     job_id: str = Query(..., description="Job ID"),
-    description: str = Query(..., description="New description text")
+    description: str = Query(..., description="New description text"),
 ):
     """Update description for a specific scene.
-    
+
     Args:
         job_id: Job ID
         scene_id: Scene ID to update
         description: New description text
-        
+
     Returns:
         Updated scene information
     """
     if job_id not in processing_jobs:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
     job = processing_jobs[job_id]
-    
+
     if job["status"] != "completed":
         raise HTTPException(
-            status_code=400, 
-            detail=f"Job not completed. Current status: {job['status']}"
+            status_code=400, detail=f"Job not completed. Current status: {job['status']}"
         )
-    
+
     # Find and update scene
     for scene in job["scenes"]:
         if scene["scene_id"] == scene_id:
@@ -581,12 +688,13 @@ async def update_scene_description(
                 "job_id": job_id,
                 "scene_id": scene_id,
                 "description": description,
-                "message": "Scene description updated successfully"
+                "message": "Scene description updated successfully",
             }
-    
+
     raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

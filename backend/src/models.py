@@ -6,6 +6,7 @@ from datetime import datetime
 
 class Scene(TypedDict):
     """Represents a detected scene in a video."""
+
     scene_id: int
     start_time: float
     end_time: float
@@ -18,6 +19,7 @@ class Scene(TypedDict):
 
 class ProjectConfig(TypedDict):
     """Project configuration for video analysis."""
+
     project_id: str
     video_filename: str
     theme: Optional[str]
@@ -30,17 +32,19 @@ class ProjectConfig(TypedDict):
 
 class AnalysisRequest(TypedDict):
     """Request for video analysis."""
+
     video_path: str
     theme: Optional[str]
     detection_sensitivity: str
     min_scene_duration: float
     ai_model: str
     start_time: Optional[float]  # Start time in seconds (0 = beginning)
-    end_time: Optional[float]    # End time in seconds (None = end of video)
+    end_time: Optional[float]  # End time in seconds (None = end of video)
 
 
 class AnalysisResponse(TypedDict):
     """Response from video analysis."""
+
     project_id: str
     scenes: List[Scene]
     processing_time: float

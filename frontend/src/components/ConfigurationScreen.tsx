@@ -1,6 +1,6 @@
 /** Configuration screen component */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Box,
   Paper,
@@ -16,6 +16,7 @@ import {
   Alert,
   Card,
   CardContent,
+  Autocomplete,
 } from '@mui/material';
 import {
   Settings as SettingsIcon,
@@ -232,30 +233,71 @@ export const ConfigurationScreen: React.FC = () => {
                 Choose which AI model to use for generating scene descriptions.
               </Typography>
 
-              <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel>AI Model</InputLabel>
-                <Select
-                  value={aiModel}
-                  label="AI Model"
-                  onChange={(e) => setState({ aiModel: e.target.value as any })}
-                  disabled={!config?.features.ai_description}
-                >
-                  {config?.ai_providers && Object.entries(config.ai_providers).map(([key, provider]) => (
-                    provider.available && (
-                      <MenuItem key={key} value={key}>
-                        {provider.name}
-                        {provider.needs_api_key && !provider.key_configured && " ⚠️ No API key"}
-                      </MenuItem>
-                    )
-                  ))}
-                  
-                  {config && !Object.values(config.ai_providers).some(p => p.available) && (
-                    <MenuItem value="openai" disabled>
-                      No AI providers available (configure API keys)
-                    </MenuItem>
-                  )}
-                </Select>
-              </FormControl>
+              {useMemo(() => {
+                // Prepare model options
+                const modelOptions = config?.ai_providers
+                  ? Object.entries(config.ai_providers)
+                      .filter(([, provider]) => provider.available)
+                      .map(([key, provider]) => ({
+                        key,
+                        label: provider.name,
+                        description: provider.description,
+                        providerGroup: key.includes('/')
+                          ? key.split('/')[0].replace('_', ' ').toUpperCase()
+                          : provider.name.split(' ')[0].toUpperCase(),
+                      }))
+                      .sort((a, b) => {
+                        // Sort by provider group, then by label
+                        if (a.providerGroup !== b.providerGroup) {
+                          return a.providerGroup.localeCompare(b.providerGroup);
+                        }
+                        return a.label.localeCompare(b.label);
+                      })
+                  : [];
+
+                const selectedModel = modelOptions.find((m) => m.key === aiModel);
+
+                return (
+                  <Autocomplete
+                    fullWidth
+                    disabled={!config?.features.ai_description}
+                    options={modelOptions}
+                    groupBy={(option) => option.providerGroup}
+                    getOptionLabel={(option) => option.label}
+                    value={selectedModel || null}
+                    onChange={(_, value) => {
+                      if (value) {
+                        setState({ aiModel: value.key });
+                      }
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="AI Model"
+                        placeholder="Search or select a model..."
+                      />
+                    )}
+                    renderOption={(props, option) => (
+                      <Box
+                        component="li"
+                        sx={{ py: 1 }}
+                        {...props}
+                      >
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            {option.label}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                            {option.description}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
+                    noOptionsText="No models available"
+                    sx={{ mb: 3 }}
+                  />
+                );
+              }, [config, aiModel, setState])}
 
               {config && !config.features.ai_description && (
                 <Alert severity="warning" sx={{ mb: 2 }}>
