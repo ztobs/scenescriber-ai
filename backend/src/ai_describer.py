@@ -43,6 +43,28 @@ class AIDescriber:
         if not self.api_key and not is_local:
             logger.warning(f"No API key provided for {model}. Some features may not work.")
 
+    def _resize_and_encode_image(self, image_path: str, max_dimension: int = 1024) -> str:
+        """Resize image and encode to base64."""
+        try:
+            with Image.open(image_path) as img:
+                # Convert to RGB to ensure compatibility (e.g. remove alpha channel)
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+                
+                # Resize if needed
+                if img.width > max_dimension or img.height > max_dimension:
+                    img.thumbnail((max_dimension, max_dimension))
+                
+                # Convert to JPEG in memory
+                import io
+                buffer = io.BytesIO()
+                img.save(buffer, format="JPEG", quality=85)
+                image_data = buffer.getvalue()
+                return base64.b64encode(image_data).decode("utf-8")
+        except Exception as e:
+            logger.error(f"Failed to process image {image_path}: {e}")
+            return ""
+
     def generate_descriptions(
         self,
         scenes: List[Dict[str, Any]],
@@ -274,15 +296,17 @@ class AIDescriber:
         # Load images as base64 and format for LM Studio native API
         images_content = []
         for keyframe in keyframes:
-            with open(keyframe, "rb") as image_file:
-                base64_image = base64.b64encode(image_file.read()).decode("utf-8")
-                # Use image_url format (OpenAI standard) which LM Studio native API supports
-                images_content.append(
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
-                    }
-                )
+            base64_image = self._resize_and_encode_image(keyframe, max_dimension=1024)
+            if not base64_image:
+                continue
+                
+            # Use image_url format (OpenAI standard) which LM Studio native API supports
+            images_content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                }
+            )
 
         payload = {
             "model": model_name,
@@ -376,28 +400,22 @@ class AIDescriber:
         for keyframe in keyframes:
             # Open image using PIL
             try:
-                with Image.open(keyframe) as img:
-                    # For LM Studio, resize image to avoid "Channel Error" (payload too large)
-                    if is_compatible and is_lm_studio:
-                        # Resize to max 512px dimension while maintaining aspect ratio
-                        img.thumbnail((512, 512))
-                        
-                        # Convert to JPEG in memory
-                        import io
-                        buffer = io.BytesIO()
-                        img.save(buffer, format="JPEG", quality=85)
-                        image_data = buffer.getvalue()
-                        base64_image = base64.b64encode(image_data).decode("utf-8")
-                        logger.debug(f"Resized image for LM Studio: {len(base64_image)} bytes")
-                    else:
-                        # Standard handling for other providers
-                        with open(keyframe, "rb") as image_file:
-                            base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+                # For OpenAI compatible (LM Studio, OpenRouter, etc.), resize image
+                # This prevents "Channel Error" in LM Studio and saves bandwidth for OpenRouter
+                if is_compatible:
+                    base64_image = self._resize_and_encode_image(keyframe, max_dimension=1024)
+                    if not base64_image:
+                        continue
+                else:
+                    # Standard OpenAI handling - can handle larger images
+                    # (Though resizing might save tokens, we stick to original for max quality on GPT-4o)
+                    with open(keyframe, "rb") as image_file:
+                        base64_image = base64.b64encode(image_file.read()).decode("utf-8")
 
-                    images.append({
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
-                    })
+                images.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
+                })
             except Exception as e:
                 logger.error(f"Failed to process image {keyframe}: {e}")
                 continue
@@ -573,8 +591,9 @@ class AIDescriber:
         images = []
         # Load all keyframes for Ollama
         for keyframe in keyframes:
-            with open(keyframe, "rb") as image_file:
-                base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+            # Resize to 1024x1024 for better performance with local models
+            base64_image = self._resize_and_encode_image(keyframe, max_dimension=1024)
+            if base64_image:
                 images.append(base64_image)
 
         if not images:
