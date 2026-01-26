@@ -352,7 +352,12 @@ class AIDescriber:
         base_model = "openai_compatible" if is_compatible else "openai"
 
         # Extract model name (e.g., "gpt-4o" from "openai/gpt-4o" or "openai_compatible/gpt-4")
-        model_name = self.model.split("/")[1] if "/" in self.model else "gpt-4o"
+        # Handle cases with multiple slashes like "openai_compatible/qwen/qwen-vl-plus"
+        if "/" in self.model:
+             # Drop the provider prefix (everything before the first slash)
+            model_name = self.model.split("/", 1)[1]
+        else:
+            model_name = "gpt-4o"
 
         # Get API base URL from environment
         if is_compatible:
@@ -408,6 +413,15 @@ class AIDescriber:
         # Only add auth header for OpenAI (LM Studio doesn't need it for /v1 endpoint)
         if not is_compatible:
             headers["Authorization"] = f"Bearer {self.api_key}"
+        
+        # For OpenAI compatible (like OpenRouter), we might need the key too if provided
+        if is_compatible and self.api_key:
+             headers["Authorization"] = f"Bearer {self.api_key}"
+
+        # Add OpenRouter specific headers
+        if "openrouter.ai" in api_base:
+            headers["HTTP-Referer"] = "http://localhost:3000"
+            headers["X-Title"] = "Video Scene Analyzer"
 
         # Add API version header for Azure OpenAI
         if api_version:
