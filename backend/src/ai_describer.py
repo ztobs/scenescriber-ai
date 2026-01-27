@@ -43,6 +43,85 @@ class AIDescriber:
         if not self.api_key and not is_local:
             logger.warning(f"No API key provided for {model}. Some features may not work.")
 
+        # Load single-image models from environment
+        single_image_env = os.getenv(
+            "SINGLE_IMAGE_MODELS",
+            "llama3.2-vision,llama3.2:11b-vision,llama3.2,gpt-4-vision-preview",
+        )
+        self.single_image_models = [m.strip().lower() for m in single_image_env.split(",")]
+
+    def _is_single_image_model(self) -> bool:
+        """Check if current model only supports a single image."""
+        model_name = self.model.lower()
+        # Check both full name and model part after slash
+        return any(m in model_name for m in self.single_image_models)
+
+    def _stitch_keyframes(self, keyframes: List[str], max_height: int = 512) -> Optional[str]:
+        """Stitch multiple keyframes into a single horizontal image."""
+        if not keyframes:
+            return None
+
+        try:
+            import io
+
+            keyframe_imgs = []
+            for kf in keyframes:
+                img = Image.open(kf).convert("RGB")
+                # Resize to a consistent height
+                if img.height > max_height:
+                    ratio = max_height / img.height
+                    img = img.resize((int(img.width * ratio), max_height), Image.Resampling.LANCZOS)
+                keyframe_imgs.append(img)
+
+            # Stitch horizontally
+            total_width = sum(img.width for img in keyframe_imgs)
+            current_max_height = max(img.height for img in keyframe_imgs)
+            stitched = Image.new("RGB", (total_width, current_max_height))
+
+            x_offset = 0
+            for img in keyframe_imgs:
+                stitched.paste(img, (x_offset, 0))
+                x_offset += img.width
+
+            # Encode to base64
+            buffer = io.BytesIO()
+            stitched.save(buffer, format="JPEG", quality=85)
+            return base64.b64encode(buffer.getvalue()).decode("utf-8")
+        except Exception as e:
+            logger.error(f"Failed to stitch keyframes: {e}")
+            return None
+
+    def _prepare_images_for_model(
+        self, keyframes: List[str], max_dimension: int = 1024
+    ) -> List[str]:
+        """Prepare images based on model capabilities (single vs multi-image)."""
+        if self._is_single_image_model() and len(keyframes) > 1:
+            logger.info(
+                f"Model {self.model} only supports 1 image. Stitching {len(keyframes)} keyframes."
+            )
+            stitched = self._stitch_keyframes(keyframes, max_height=max_dimension // 2)
+            if stitched:
+                return [stitched]
+            # Fallback to first image if stitching fails
+            logger.warning("Stitching failed, falling back to first keyframe")
+            img = self._resize_and_encode_image(keyframes[0], max_dimension=max_dimension)
+            return [img] if img else []
+
+        # Default: encode all or single keyframe
+        images = []
+        # If it's a single image model but only one keyframe provided
+        if self._is_single_image_model() and len(keyframes) == 1:
+            img = self._resize_and_encode_image(keyframes[0], max_dimension=max_dimension)
+            if img:
+                images.append(img)
+        else:
+            # Multi-image model or unknown
+            for kf in keyframes:
+                img = self._resize_and_encode_image(kf, max_dimension=max_dimension)
+                if img:
+                    images.append(img)
+        return images
+
     def _resize_and_encode_image(self, image_path: str, max_dimension: int = 1024) -> str:
         """Resize image and encode to base64."""
         try:
@@ -50,13 +129,14 @@ class AIDescriber:
                 # Convert to RGB to ensure compatibility (e.g. remove alpha channel)
                 if img.mode != "RGB":
                     img = img.convert("RGB")
-                
+
                 # Resize if needed
                 if img.width > max_dimension or img.height > max_dimension:
                     img.thumbnail((max_dimension, max_dimension))
-                
+
                 # Convert to JPEG in memory
                 import io
+
                 buffer = io.BytesIO()
                 img.save(buffer, format="JPEG", quality=85)
                 image_data = buffer.getvalue()
@@ -293,14 +373,19 @@ class AIDescriber:
         # Build prompt
         prompt = self._build_prompt(theme, description_length)
 
-        # Load images as base64 and format for LM Studio native API
+        # Adjust prompt if images were stitched
+        if self._is_single_image_model() and len(keyframes) > 1:
+            prompt = f"This image shows {len(keyframes)} keyframes from a video scene arranged horizontally. {prompt}"
+
+        # Prepare images based on model capabilities
+        base64_images = self._prepare_images_for_model(keyframes, max_dimension=1024)
+
+        if not base64_images:
+            raise ValueError("No valid keyframes to process")
+
+        # Format for LM Studio native API (OpenAI standard format)
         images_content = []
-        for keyframe in keyframes:
-            base64_image = self._resize_and_encode_image(keyframe, max_dimension=1024)
-            if not base64_image:
-                continue
-                
-            # Use image_url format (OpenAI standard) which LM Studio native API supports
+        for base64_image in base64_images:
             images_content.append(
                 {
                     "type": "image_url",
@@ -378,7 +463,7 @@ class AIDescriber:
         # Extract model name (e.g., "gpt-4o" from "openai/gpt-4o" or "openai_compatible/gpt-4")
         # Handle cases with multiple slashes like "openai_compatible/qwen/qwen-vl-plus"
         if "/" in self.model:
-             # Drop the provider prefix (everything before the first slash)
+            # Drop the provider prefix (everything before the first slash)
             model_name = self.model.split("/", 1)[1]
         else:
             model_name = "gpt-4o"
@@ -394,47 +479,44 @@ class AIDescriber:
             api_version = None
             is_lm_studio = False
 
-        # Prepare images for OpenAI-compatible API
-        images = []
-        
-        for keyframe in keyframes:
-            # Open image using PIL
-            try:
-                # For OpenAI compatible (LM Studio, OpenRouter, etc.), resize image
-                # This prevents "Channel Error" in LM Studio and saves bandwidth for OpenRouter
-                if is_compatible:
-                    base64_image = self._resize_and_encode_image(keyframe, max_dimension=1024)
-                    if not base64_image:
-                        continue
-                else:
-                    # Standard OpenAI handling - can handle larger images
-                    # (Though resizing might save tokens, we stick to original for max quality on GPT-4o)
-                    with open(keyframe, "rb") as image_file:
-                        base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+        # Prepare images based on model capabilities
+        # For single-image models, _prepare_images_for_model will stitch them
+        base64_images = self._prepare_images_for_model(
+            keyframes, max_dimension=1024 if is_compatible else 2048
+        )
 
-                images.append({
+        if not base64_images:
+            raise ValueError("No valid keyframes to process")
+
+        # Convert base64 images to OpenAI format
+        images = []
+        for base64_image in base64_images:
+            images.append(
+                {
                     "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
-                })
-            except Exception as e:
-                logger.error(f"Failed to process image {keyframe}: {e}")
-                continue
+                    "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                }
+            )
 
         # Build prompt based on theme and length
         prompt = self._build_prompt(theme, description_length)
+
+        # Adjust prompt if images were stitched
+        if self._is_single_image_model() and len(keyframes) > 1:
+            prompt = f"This image shows {len(keyframes)} keyframes from a video scene arranged horizontally. {prompt}"
 
         # Send standard request with images
         messages = [{"role": "user", "content": [{"type": "text", "text": prompt}, *images]}]
 
         headers = {"Content-Type": "application/json"}
-        
+
         # Only add auth header for OpenAI (LM Studio doesn't need it for /v1 endpoint)
         if not is_compatible:
             headers["Authorization"] = f"Bearer {self.api_key}"
-        
+
         # For OpenAI compatible (like OpenRouter), we might need the key too if provided
         if is_compatible and self.api_key:
-             headers["Authorization"] = f"Bearer {self.api_key}"
+            headers["Authorization"] = f"Bearer {self.api_key}"
 
         # Add OpenRouter specific headers
         if "openrouter.ai" in api_base:
@@ -463,9 +545,11 @@ class AIDescriber:
             # Log exact images being sent
             sent_filenames = [os.path.basename(k) for k in keyframes]
             logger.info(f"Sending {len(images)} images to AI: {sent_filenames}")
-            logger.debug(f"Payload: model={model_name}, images_count={len(images)}, max_tokens={payload['max_tokens']}")
+            logger.debug(
+                f"Payload: model={model_name}, images_count={len(images)}, max_tokens={payload['max_tokens']}"
+            )
             logger.debug(f"Headers: {headers}")
-            
+
             response = requests.post(
                 f"{api_base}/chat/completions", headers=headers, json=payload, timeout=timeout
             )
@@ -475,14 +559,14 @@ class AIDescriber:
             if response.status_code != 200:
                 error_text = response.text
                 logger.error(f"{base_model} API error response: {error_text}")
-                
+
                 # Handle specific LM Studio errors
                 if "Failed to load model" in error_text:
-                    raise ValueError(f"LM Studio could not load model '{model_name}'. Please check if it's installed and healthy in LM Studio.")
-                
-                raise ValueError(
-                    f"{base_model.replace('_', ' ').title()} API error: {error_text}"
-                )
+                    raise ValueError(
+                        f"LM Studio could not load model '{model_name}'. Please check if it's installed and healthy in LM Studio."
+                    )
+
+                raise ValueError(f"{base_model.replace('_', ' ').title()} API error: {error_text}")
 
             response_json = response.json()
             logger.debug(f"{base_model} API response: {response_json}")
@@ -499,7 +583,9 @@ class AIDescriber:
             return content
 
         except requests.exceptions.Timeout:
-            logger.error(f"{base_model} API timeout ({timeout} seconds) - model may be processing slowly")
+            logger.error(
+                f"{base_model} API timeout ({timeout} seconds) - model may be processing slowly"
+            )
             raise ValueError(
                 f"{base_model.replace('_', ' ').title()} API timeout - model is too slow"
             )
@@ -519,24 +605,32 @@ class AIDescriber:
         if not self.api_key:
             raise ValueError("Claude API key not provided")
 
-        # Prepare images
+        # Prepare images based on model capabilities
+        base64_images = self._prepare_images_for_model(keyframes, max_dimension=1568)
+
+        if not base64_images:
+            raise ValueError("No valid keyframes to process")
+
+        # Convert to Claude format
         images = []
-        for keyframe in keyframes:
-            with open(keyframe, "rb") as image_file:
-                base64_image = base64.b64encode(image_file.read()).decode("utf-8")
-                images.append(
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "image/jpeg",
-                            "data": base64_image,
-                        },
-                    }
-                )
+        for base64_image in base64_images:
+            images.append(
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/jpeg",
+                        "data": base64_image,
+                    },
+                }
+            )
 
         # Build prompt
         prompt = self._build_prompt(theme, description_length)
+
+        # Adjust prompt if images were stitched
+        if self._is_single_image_model() and len(keyframes) > 1:
+            prompt = f"This image shows {len(keyframes)} keyframes from a video scene arranged horizontally. {prompt}"
 
         messages = [{"role": "user", "content": [{"type": "text", "text": prompt}, *images]}]
 
@@ -584,17 +678,8 @@ class AIDescriber:
         else:
             ollama_model = os.getenv("OLLAMA_MODEL", "llava")
 
-        # Prepare images (Ollama typically handles one image per prompt well,
-        # but supports multiple. We'll send all keyframes if supported,
-        # but usually LLaVA takes one. Let's send the first one for now to be safe/consistent
-        # with _describe_with_llava logic which uses keyframes[:1])
-        images = []
-        # Load all keyframes for Ollama
-        for keyframe in keyframes:
-            # Resize to 1024x1024 for better performance with local models
-            base64_image = self._resize_and_encode_image(keyframe, max_dimension=1024)
-            if base64_image:
-                images.append(base64_image)
+        # Prepare images using centralized method
+        images = self._prepare_images_for_model(keyframes, max_dimension=1024)
 
         if not images:
             raise ValueError("No valid keyframes to analyze")
@@ -604,6 +689,10 @@ class AIDescriber:
         # as Ollama's API handles image insertion
         prompt = self._build_llava_prompt(theme, description_length)
         prompt = prompt.replace("<image>", "").strip()
+
+        # Adjust prompt for stitched images if needed
+        if self._is_single_image_model() and len(keyframes) > 1:
+            prompt = f"This image shows multiple keyframes from a video scene arranged horizontally. {prompt}"
 
         payload = {
             "model": ollama_model,
@@ -627,6 +716,20 @@ class AIDescriber:
 
             return description
 
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 400:
+                logger.error(
+                    f"Ollama 400 Bad Request for model {ollama_model}. "
+                    f"Possible issues: model doesn't support {len(images)} images, "
+                    f"image format invalid, or model not fully loaded."
+                )
+                logger.debug(
+                    f"Request details: model={ollama_model}, images_count={len(images)}, "
+                    f"prompt_length={len(prompt)}"
+                )
+            else:
+                logger.error(f"Ollama HTTP error {e.response.status_code}: {e}")
+            return ""
         except requests.RequestException as e:
             logger.error(f"Ollama API error: {e}")
             # Don't raise, just return empty so flow continues (similar to other local failures)

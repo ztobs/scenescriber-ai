@@ -202,6 +202,50 @@ The application will be available at:
 | `make test` | Run all tests |
 | `make update` | Update dependencies |
 
+## 🎨 Single-Image Model Support (NEW!)
+
+SceneScriber AI automatically handles models that only support one image per request:
+
+### What It Does
+
+Some vision models (like Llama 3.2 Vision, Moondream, CogVLM) can only process one image at a time. When analyzing scenes with multiple keyframes, the application automatically:
+
+1. **Detects single-image models** based on the configurable `SINGLE_IMAGE_MODELS` list
+2. **Stitches keyframes horizontally** into a single panoramic image
+3. **Adjusts AI prompts** to inform that the image shows multiple sequential frames
+4. **Works transparently** - no user configuration needed!
+
+### Supported Single-Image Models
+
+By default, the following models have keyframes automatically stitched:
+- **Llama 3.2 Vision** (all variants: 11B, 90B)
+- **Moondream** (moondream, moondream2)
+- **CogVLM** (cogvlm, cogvlm2)
+- **MiniCPM-V** (OpenBMB)
+- **GPT-4 Vision Preview** (deprecated)
+
+### Adding Your Own Models
+
+To add a model to the single-image list, edit `backend/.env`:
+
+```env
+# Add your custom model to the comma-separated list
+SINGLE_IMAGE_MODELS=llama3.2-vision,moondream,my-custom-vision-model
+```
+
+The matching is case-insensitive and checks if your model name contains any of these strings.
+
+### Multi-Image Models (No Stitching)
+
+These models support multiple images natively and don't need stitching:
+- **GPT-4o, GPT-4o-mini** (OpenAI)
+- **Claude 3** (all variants - Opus, Sonnet, Haiku)
+- **Gemini Pro Vision, Gemini Flash** (Google)
+- **Qwen-VL Plus/Max** (Alibaba)
+- **Pixtral 12B** (Mistral AI)
+
+For these models, keyframes are sent individually for better analysis quality.
+
 ## 🤖 Using Local AI Models (LLaVA & Ollama)
 
 SceneScriber AI supports multiple local AI options for privacy-focused, offline processing:
@@ -335,6 +379,11 @@ GEMINI_API_KEY=your_gemini_key
 # Ollama Configuration (for local models)
 OLLAMA_HOST=http://localhost:11434  # Ollama server URL
 OLLAMA_MODEL=llava:latest           # Default Ollama model
+
+# Single-Image Model Configuration (NEW!)
+# Models that only support 1 image per request - keyframes will be stitched horizontally
+# Default includes: llama3.2-vision, moondream, cogvlm, minicpm-v, gpt-4-vision-preview
+SINGLE_IMAGE_MODELS=llama3.2-vision,llama3.2:11b-vision,llama3.2,moondream,cogvlm,minicpm-v
 
 # Application Settings
 MAX_UPLOAD_SIZE=2147483648  # 2GB in bytes
