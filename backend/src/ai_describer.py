@@ -505,6 +505,21 @@ class AIDescriber:
         if self._is_single_image_model() and len(keyframes) > 1:
             prompt = f"This image shows {len(keyframes)} keyframes from a video scene arranged horizontally. {prompt}"
 
+        # Log the exact prompt being sent at DEBUG level
+        logger.debug(f"=== AI API REQUEST DETAILS ===")
+        logger.debug(f"Model: {model_name}")
+        logger.debug(f"Provider: {base_model}")
+        logger.debug(f"Theme provided: {theme}")
+        logger.debug(f"Description length: {description_length}")
+        logger.debug(f"Prompt length: {len(prompt)} characters")
+        logger.debug(f"Full prompt being sent to AI:")
+        logger.debug(f"--- START PROMPT ---")
+        logger.debug(prompt)
+        logger.debug(f"--- END PROMPT ---")
+        logger.debug(f"Images count: {len(images)}")
+        logger.debug(f"Keyframes: {[os.path.basename(k) for k in keyframes]}")
+        logger.debug(f"=== END REQUEST DETAILS ===")
+
         # Send standard request with images
         messages = [{"role": "user", "content": [{"type": "text", "text": prompt}, *images]}]
 
@@ -1077,6 +1092,20 @@ For DIY/builds: What is being built, what tools are used, what is the progressio
 For cooking: What ingredients, techniques, equipment, and cooking stages?
 For tutorials: What is being demonstrated, what steps are visible?
 For reviews: What product features or qualities are shown?"""
+
+        # Log the prompt construction details at DEBUG level
+        logger.debug(f"=== PROMPT CONSTRUCTION ===")
+        logger.debug(f"Theme provided to _build_prompt: {theme}")
+        logger.debug(f"Description length: {description_length}")
+        logger.debug(f"Theme is being added to prompt: {theme is not None}")
+        if theme:
+            logger.debug(f"Theme text exactly: '{theme}'")
+        logger.debug(f"Prompt length: {len(base_prompt)} characters")
+        logger.debug(f"Full prompt being built:")
+        logger.debug(f"--- START BUILT PROMPT ---")
+        logger.debug(base_prompt)
+        logger.debug(f"--- END BUILT PROMPT ---")
+        logger.debug(f"=== END PROMPT CONSTRUCTION ===")
 
         return base_prompt
 
