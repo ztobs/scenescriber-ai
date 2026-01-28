@@ -116,7 +116,7 @@ class FilenameFormatter:
             "[detail]": detail_short,
             "[provider]": metadata["model_provider"],
             "[model]": self._sanitize_name(metadata["model_name"]),
-            "[speed]": f"{metadata['speed']:.2f}",
+            "[speed]": f"{metadata['speed']:.1f}",
             "[timestamp]": metadata["timestamp"],
         }
 
