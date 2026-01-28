@@ -271,15 +271,31 @@ class SceneDetector:
             keyframes = []
             start_frame = int(scene["start_time"] * fps)
             end_frame = int(scene["end_time"] * fps)
+            
+            # Ensure we have at least 1 frame difference
+            if end_frame <= start_frame:
+                end_frame = start_frame + 1
 
-            # Extract frames at start, middle, and end of scene
+            # Extract frames at start, middle, and end with offset to avoid scene cuts
+            offset_frames = int(fps * 0.5)  # 500ms offset to avoid scene boundaries
+            
+            # Adjust start and end frames with offset
+            adjusted_start = start_frame + offset_frames
+            adjusted_end = end_frame - offset_frames
+            
+            # Ensure adjusted positions are valid (scene must be longer than 1 second)
+            if adjusted_end <= adjusted_start:
+                # If scene is too short, use original positions
+                adjusted_start = start_frame
+                adjusted_end = end_frame
+            
             frame_positions = [
-                start_frame,
-                start_frame + (end_frame - start_frame) // 2,
-                max(start_frame, end_frame - 1),  # Ensure not negative
+                adjusted_start,
+                start_frame + (end_frame - start_frame) // 2,  # Middle stays the same
+                max(adjusted_start, adjusted_end - 1),  # Ensure not negative
             ]
 
-            for frame_pos in frame_positions[:frames_per_scene]:
+            for frame_pos in frame_positions:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, frame_pos)
                 ret, frame = cap.read()
                 if ret:

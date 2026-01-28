@@ -287,11 +287,23 @@ class SimpleSceneDetector:
             if duration <= 0:
                 continue
 
-            # Extract frames at start, middle, and end
+            # Extract frames at start, middle, and end with offset to avoid scene cuts
+            offset_seconds = 0.5  # 500ms offset to avoid scene boundaries
+            
+            # Adjust start and end times with offset
+            adjusted_start = start_time + offset_seconds
+            adjusted_end = end_time - offset_seconds
+            
+            # Ensure adjusted times are valid (scene must be longer than 1 second)
+            if adjusted_end <= adjusted_start:
+                # If scene is too short, use original times
+                adjusted_start = start_time
+                adjusted_end = end_time
+            
             frame_times = [
-                start_time,
-                start_time + duration / 2,
-                end_time - 0.1,  # Slightly before end
+                adjusted_start,
+                start_time + duration / 2,  # Middle stays the same
+                adjusted_end,
             ]
 
             for i, frame_time in enumerate(frame_times[:frames_per_scene]):
