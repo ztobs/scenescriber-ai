@@ -21,6 +21,7 @@ const initialState: Omit<AppState, 'setState' | 'reset'> = {
   loading: false,
   error: null,
   config: null,
+  filenameFormat: '[videoname]_[timestamp]', // Default format
 };
 
 interface AppStore extends AppState {
@@ -114,6 +115,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       const request = {
         video_path: state.uploadedFile.file_path,
+        original_filename: state.uploadedFile.filename,
         theme: state.theme || undefined,
         detection_sensitivity: state.detectionSensitivity,
         min_scene_duration: state.minSceneDuration,
@@ -166,8 +168,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
-      const blob = await videoApi.exportSrt(state.jobId);
-      videoApi.downloadSrt(state.jobId, blob);
+      const { blob, filename } = await videoApi.exportSrt(state.jobId, state.filenameFormat);
+      videoApi.downloadSrt(blob, filename);
       set({ loading: false, currentStep: 'export' });
     } catch (error) {
       set({

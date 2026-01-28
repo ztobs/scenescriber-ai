@@ -8,6 +8,7 @@ import type {
   JobStatus,
   ScenesResponse,
   AppConfig,
+  FilenameFormatInfo,
 } from '../types';
 
 export const API_BASE_URL = '/api';
@@ -75,20 +76,40 @@ export const videoApi = {
     });
   },
 
-  /** Export SRT file */
-  exportSrt: async (jobId: string): Promise<Blob> => {
-    const response = await api.get(`/export/srt/${jobId}`, {
-      responseType: 'blob',
-    });
+  /** Get filename placeholders */
+  getFilenamePlaceholders: async (): Promise<FilenameFormatInfo> => {
+    const response = await api.get('/filename/placeholders');
     return response.data;
   },
 
+  /** Export SRT file */
+  exportSrt: async (jobId: string, filenameFormat?: string): Promise<{ blob: Blob; filename: string }> => {
+    const params = filenameFormat ? { filename_format: filenameFormat } : {};
+    const response = await api.get(`/export/srt/${jobId}`, {
+      params,
+      responseType: 'blob',
+    });
+    
+    // Extract filename from Content-Disposition header if available
+    let filename = 'scenes.srt';
+    const contentDisposition = response.headers['content-disposition'];
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="(.+)"/);
+      if (match && match[1]) {
+        filename = match[1];
+      }
+    }
+    
+    return { blob: response.data, filename };
+  },
+
   /** Download SRT file */
-  downloadSrt: (jobId: string, blob: Blob): void => {
+  downloadSrt: (blob: Blob, filename: string): void => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `scenes_${jobId}.srt`;
+    link.download = filename;
+    
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

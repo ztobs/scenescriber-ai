@@ -13,9 +13,9 @@ uvicorn[standard]>=0.24.0
 python-multipart>=0.0.6
 
 # Optional: For advanced scene detection (install if available)
-# opencv-python>=4.8.0
-# scikit-video>=1.1.11
-# scikit-image>=0.22.0
+opencv-python>=4.8.0
+scikit-video>=1.1.11
+scikit-image>=0.22.0
 
 # Optional AI providers
 openai>=1.0.0

@@ -34,10 +34,12 @@ class AnalysisRequest(TypedDict):
     """Request for video analysis."""
 
     video_path: str
+    original_filename: Optional[str]  # Original filename from upload
     theme: Optional[str]
     detection_sensitivity: str
     min_scene_duration: float
     ai_model: str
+    description_length: str  # 'short', 'medium', 'detailed'
     start_time: Optional[float]  # Start time in seconds (0 = beginning)
     end_time: Optional[float]  # End time in seconds (None = end of video)
 
@@ -50,3 +52,17 @@ class AnalysisResponse(TypedDict):
     processing_time: float
     success: bool
     error_message: Optional[str]
+
+
+class ExportMetadata(TypedDict):
+    """Metadata for export filename generation."""
+
+    video_name: str
+    sensitivity: str
+    detail_level: str
+    model_provider: str  # "openai", "ollama", etc.
+    model_name: str  # Full model name (e.g., "gpt-4o", "llama2")
+    speed: float  # segment_duration / processing_time
+    timestamp: str
+    segment_duration: float  # Duration of processed video segment (not full video)
+    processing_time: float

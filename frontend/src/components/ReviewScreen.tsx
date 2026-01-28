@@ -36,9 +36,10 @@ import ReactPlayer from 'react-player';
 import { useAppStore } from '../store/useAppStore';
 import { formatTimestamp } from '../utils/time';
 import { API_BASE_URL } from '../utils/api';
+import { FilenameFormatBuilder } from './FilenameFormatBuilder';
 
 export const ReviewScreen: React.FC = () => {
-  const { scenes, updateSceneDescription, exportSrt, loading, setState, uploadedFile } = useAppStore();
+  const { scenes, updateSceneDescription, exportSrt, loading, setState, uploadedFile, filenameFormat } = useAppStore();
   const [editingSceneId, setEditingSceneId] = useState<number | null>(null);
   const [editDescription, setEditDescription] = useState('');
   const [selectedSceneIndex, setSelectedSceneIndex] = useState(0);
@@ -481,6 +482,16 @@ export const ReviewScreen: React.FC = () => {
       </Grid>
 
       <Box sx={{ mt: 4, p: 3, bgcolor: 'grey.50', borderRadius: 2 }}>
+        <Typography variant="subtitle1" gutterBottom>
+          Export Filename Configuration
+        </Typography>
+        <FilenameFormatBuilder
+          value={filenameFormat}
+          onChange={(newFormat) => setState({ filenameFormat: newFormat })}
+        />
+        
+        <Divider sx={{ my: 3 }} />
+        
         <Typography variant="subtitle1" gutterBottom>
           SRT Export Preview
         </Typography>

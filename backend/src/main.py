@@ -3,9 +3,17 @@
 import logging
 import uuid
 import os
+import time
 from typing import Optional
 from pathlib import Path
 from dotenv import load_dotenv
+# Try to import cv2 for video metadata, but make it optional
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+    logger.warning("OpenCV (cv2) not available. Video duration metadata will be limited.")
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +24,7 @@ from .models import AnalysisRequest, AnalysisResponse, Scene, ProjectConfig
 from .scene_detector_simple import SimpleSceneDetector
 from .ai_describer import AIDescriber
 from .srt_exporter import SRTExporter
+from .filename_formatter import FilenameFormatter
 
 # Load environment variables
 load_dotenv()
@@ -204,6 +213,32 @@ async def root():
             "scenes": "/api/scenes/{job_id}",
             "export": "/api/export/srt/{job_id}",
             "config": "/api/config",
+            "filename_placeholders": "/api/filename/placeholders",
+        },
+    }
+
+
+@app.get("/api/filename/placeholders")
+async def get_filename_placeholders():
+    """Get available placeholders for filename formatting.
+
+    Returns:
+        Dictionary of available placeholders and their descriptions, plus default/full formats
+    """
+    formatter = FilenameFormatter()
+    
+    return {
+        "placeholders": formatter.get_available_placeholders(),
+        "default_format": formatter.get_default_format(),
+        "full_format": formatter.get_full_format(),
+        "description": {
+            "[videoname]": "Original video filename without extension",
+            "[sensitivity]": "Scene detection sensitivity (s1=low, s2=medium, s3=high)",
+            "[detail]": "Description detail level (d1=short, d2=medium, d3=detailed)",
+            "[provider]": "AI model provider (ollama, openai, etc.)",
+            "[model]": "AI model name (e.g. gpt-4o, llama2)",
+            "[speed]": "Processing speed (video_duration / processing_time)",
+            "[timestamp]": "Export timestamp (YYYYMMDD_HHMMSS)",
         },
     }
 
@@ -409,6 +444,7 @@ async def get_video(file_id: str):
 async def analyze_video(
     background_tasks: BackgroundTasks,
     video_path: str,
+    original_filename: Optional[str] = None,
     theme: Optional[str] = None,
     detection_sensitivity: str = "medium",
     min_scene_duration: float = 2.0,
@@ -456,6 +492,7 @@ async def analyze_video(
         process_video_analysis,
         job_id=job_id,
         video_path=video_path,
+        original_filename=original_filename,
         theme=theme,
         detection_sensitivity=detection_sensitivity,
         min_scene_duration=min_scene_duration,
@@ -476,6 +513,7 @@ async def analyze_video(
 def process_video_analysis(
     job_id: str,
     video_path: str,
+    original_filename: Optional[str],
     theme: Optional[str],
     detection_sensitivity: str,
     min_scene_duration: float,
@@ -485,11 +523,25 @@ def process_video_analysis(
     end_time: Optional[float] = None,
 ):
     """Background task for video analysis processing."""
+    processing_start = time.time()
+    
     try:
         # Update job status
         processing_jobs[job_id]["status"] = "processing"
         processing_jobs[job_id]["progress"] = 10
         processing_jobs[job_id]["message"] = "Detecting scenes..."
+        
+        # Get video metadata (if cv2 is available)
+        if CV2_AVAILABLE:
+            cap = cv2.VideoCapture(video_path)
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            video_full_duration = total_frames / fps if fps > 0 else 0
+            cap.release()
+        else:
+            # Fallback: estimate duration from scenes or use default
+            video_full_duration = 0
+            logger.warning("OpenCV not available, using estimated video duration")
 
         # Step 1: Detect scenes
         detector = SimpleSceneDetector(
@@ -549,13 +601,44 @@ def process_video_analysis(
                     new_keyframes.append(f"/api/keyframes/{filename}")
                 scene["keyframes"] = new_keyframes
 
-        # Update job with results
+        # Calculate processing time and segment duration
+        processing_end = time.time()
+        processing_time = processing_end - processing_start
+        
+        # Calculate segment duration
+        if scenes:
+            segment_duration = scenes[-1]["end_time"] - scenes[0]["start_time"]
+        else:
+            # Fallback to time range if no scenes
+            segment_duration = (end_time or video_full_duration) - (start_time or 0)
+        
+        # Parse model provider and name from ai_model
+        if "/" in ai_model:
+            model_provider, model_name = ai_model.split("/", 1)
+        else:
+            model_provider = ai_model
+            model_name = ai_model
+        
+        # Update job with results and metadata
         processing_jobs[job_id]["status"] = "completed"
         processing_jobs[job_id]["progress"] = 100
         processing_jobs[job_id]["message"] = "Analysis completed successfully"
         processing_jobs[job_id]["scenes"] = scenes
+        processing_jobs[job_id]["metadata"] = {
+            "video_path": video_path,
+            "video_name": original_filename or os.path.basename(video_path),
+            "sensitivity": detection_sensitivity,
+            "detail_level": description_length,
+            "model_provider": model_provider,
+            "model_name": model_name,
+            "segment_duration": segment_duration,
+            "processing_time": processing_time,
+        }
 
-        logger.info(f"Analysis completed for job {job_id}: {len(scenes)} scenes")
+        logger.info(
+            f"Analysis completed for job {job_id}: {len(scenes)} scenes, "
+            f"processing time: {processing_time:.2f}s"
+        )
 
     except Exception as e:
         logger.error(f"Analysis failed for job {job_id}: {e}")
@@ -612,11 +695,18 @@ async def get_scenes(job_id: str):
 
 
 @app.get("/api/export/srt/{job_id}")
-async def export_srt(job_id: str):
+async def export_srt(
+    job_id: str,
+    filename_format: Optional[str] = Query(
+        default=None,
+        description="Filename format template (e.g., '[videoname]_[timestamp]')",
+    ),
+):
     """Export scene descriptions as SRT file.
 
     Args:
         job_id: Job ID returned from analyze endpoint
+        filename_format: Optional filename template with placeholders
 
     Returns:
         SRT file download
@@ -639,8 +729,44 @@ async def export_srt(job_id: str):
     if not exporter.validate_srt(srt_content):
         raise HTTPException(status_code=500, detail="Generated SRT content is invalid")
 
+    # Generate filename
+    formatter = FilenameFormatter()
+    
+    if filename_format:
+        # Use provided format
+        template = filename_format
+    else:
+        # Use default format
+        template = FilenameFormatter.get_default_format()
+    
+    # Get metadata from job
+    job_metadata = job.get("metadata", {})
+    
+    if job_metadata:
+        # Create export metadata
+        export_metadata = FilenameFormatter.create_metadata(
+            video_name=job_metadata.get("video_name", "video"),
+            sensitivity=job_metadata.get("sensitivity", "medium"),
+            detail_level=job_metadata.get("detail_level", "medium"),
+            model_provider=job_metadata.get("model_provider", "unknown"),
+            model_name=job_metadata.get("model_name", "unknown"),
+            segment_duration=job_metadata.get("segment_duration", 0),
+            processing_time=job_metadata.get("processing_time", 0),
+        )
+        
+        # Format filename
+        try:
+            base_filename = formatter.format_filename(export_metadata, template)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    else:
+        # Fallback if metadata not available
+        base_filename = f"scenes_{job_id}"
+    
+    filename = f"{base_filename}.srt"
+
     # Save to temporary file
-    srt_path = Path(f"exports/{job_id}.srt")
+    srt_path = Path(f"exports/{base_filename}.srt")
     srt_path.parent.mkdir(exist_ok=True)
 
     try:
@@ -649,9 +775,7 @@ async def export_srt(job_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to save SRT file: {e}")
 
     # Return file for download
-    return FileResponse(
-        path=srt_path, filename=f"scenes_{job_id}.srt", media_type="application/x-subrip"
-    )
+    return FileResponse(path=srt_path, filename=filename, media_type="application/x-subrip")
 
 
 @app.put("/api/scenes/{scene_id}")

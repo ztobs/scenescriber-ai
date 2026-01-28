@@ -93,4 +93,12 @@ export interface AppState {
   loading: boolean;
   error: string | null;
   config: AppConfig | null;
+  filenameFormat: string;       // Filename format template with placeholders
+}
+
+export interface FilenameFormatInfo {
+  placeholders: Record<string, string>;
+  default_format: string;
+  full_format: string;
+  description: Record<string, string>;
 }
