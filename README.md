@@ -1,10 +1,10 @@
 # 🎬 SceneScriber AI - Video Scene Analyzer
 
-An intelligent video analysis tool that automatically detects scene cuts, generates AI-powered descriptions based on user-defined themes, and exports SRT caption files for video editing workflows.
+An intelligent video analysis tool that automatically detects scene cuts, generates AI-powered descriptions based on visuals (no audio), user-defined themes, and exports SRT caption files for video editing workflows.
 
 ## ✨ Key Features
 
-- **Automatic Scene Detection**: Detects scene boundaries using FFmpeg-based histogram comparison
+- **Automatic Scene Detection**: Detects scene boundaries using visual analysis (FFmpeg-based histogram comparison) - **no audio analysis**
 - **AI-Powered Descriptions**: Multiple AI options:
   - **Cloud AI**: GPT-4o (OpenAI), Claude 3 (Anthropic), Gemini (Google)
   - **Local AI**: LLaVA (Transformers), Ollama models (llava, bakllava, etc.) - 100% offline & free
@@ -95,7 +95,7 @@ The application will be available at:
 
 ## 🔧 Key Technical Features
 
-1. **Scene Detection**: Multiple sensitivity levels, minimum scene duration control
+1. **Scene Detection**: Visual-based analysis using frame histogram comparison - **no audio processing**. Multiple sensitivity levels, minimum scene duration control
 2. **AI Integration**: Support for multiple providers with fallback options
 3. **Theme Awareness**: Dynamic prompt engineering based on user themes
 4. **SRT Compliance**: Strict adherence to SubRip specification
