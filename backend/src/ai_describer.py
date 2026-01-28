@@ -375,7 +375,7 @@ class AIDescriber:
 
         # Adjust prompt if images were stitched
         if self._is_single_image_model() and len(keyframes) > 1:
-            prompt = f"This image shows {len(keyframes)} keyframes from a video scene arranged horizontally. {prompt}"
+            prompt = f"Multiple frames stitched horizontally. {prompt}"
 
         # Prepare images based on model capabilities
         base64_images = self._prepare_images_for_model(keyframes, max_dimension=1024)
@@ -503,22 +503,15 @@ class AIDescriber:
 
         # Adjust prompt if images were stitched
         if self._is_single_image_model() and len(keyframes) > 1:
-            prompt = f"This image shows {len(keyframes)} keyframes from a video scene arranged horizontally. {prompt}"
+            prompt = f"Multiple frames stitched horizontally. {prompt}"
 
-        # Log the exact prompt being sent at DEBUG level
-        logger.debug(f"=== AI API REQUEST DETAILS ===")
-        logger.debug(f"Model: {model_name}")
-        logger.debug(f"Provider: {base_model}")
-        logger.debug(f"Theme provided: {theme}")
-        logger.debug(f"Description length: {description_length}")
-        logger.debug(f"Prompt length: {len(prompt)} characters")
-        logger.debug(f"Full prompt being sent to AI:")
-        logger.debug(f"--- START PROMPT ---")
-        logger.debug(prompt)
-        logger.debug(f"--- END PROMPT ---")
-        logger.debug(f"Images count: {len(images)}")
-        logger.debug(f"Keyframes: {[os.path.basename(k) for k in keyframes]}")
-        logger.debug(f"=== END REQUEST DETAILS ===")
+        # Log request details
+        logger.info(
+            f"API Request - Provider: {base_model}, Model: {model_name}, "
+            f"Theme: {theme or 'None'}, Length: {description_length}, "
+            f"Images: {len(images)}, Prompt: {len(prompt)} chars"
+        )
+        logger.debug(f"Full prompt: {prompt}")
 
         # Send standard request with images
         messages = [{"role": "user", "content": [{"type": "text", "text": prompt}, *images]}]
@@ -645,7 +638,7 @@ class AIDescriber:
 
         # Adjust prompt if images were stitched
         if self._is_single_image_model() and len(keyframes) > 1:
-            prompt = f"This image shows {len(keyframes)} keyframes from a video scene arranged horizontally. {prompt}"
+            prompt = f"Multiple frames stitched horizontally. {prompt}"
 
         messages = [{"role": "user", "content": [{"type": "text", "text": prompt}, *images]}]
 
@@ -661,14 +654,38 @@ class AIDescriber:
             "messages": messages,
         }
 
-        response = requests.post(
-            "https://api.anthropic.com/v1/messages", headers=headers, json=payload, timeout=30
+        # Log request details
+        logger.info(
+            f"API Request - Provider: claude, Model: claude-3-opus-20240229, "
+            f"Theme: {theme or 'None'}, Length: {description_length}, "
+            f"Images: {len(images)}, Prompt: {len(prompt)} chars"
         )
+        logger.debug(f"Full prompt: {prompt}")
 
-        if response.status_code != 200:
-            raise ValueError(f"Claude API error: {response.text}")
+        try:
+            response = requests.post(
+                "https://api.anthropic.com/v1/messages", headers=headers, json=payload, timeout=30
+            )
 
-        return response.json()["content"][0]["text"]
+            logger.debug(f"Claude API response status: {response.status_code}")
+
+            if response.status_code != 200:
+                logger.error(f"Claude API error: {response.text}")
+                raise ValueError(f"Claude API error: {response.text}")
+
+            content = response.json()["content"][0]["text"]
+            logger.info(f"Successfully generated description ({len(content)} chars)")
+            return content
+
+        except requests.exceptions.Timeout:
+            logger.error("Claude API timeout")
+            raise ValueError("Claude API timeout")
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Claude connection error: {e}")
+            raise ValueError(f"Cannot connect to Claude API")
+        except Exception as e:
+            logger.error(f"Unexpected error calling Claude API: {e}", exc_info=True)
+            raise
 
     def _describe_with_gemini(
         self, keyframes: List[str], theme: Optional[str] = None, description_length: str = "medium"
@@ -699,15 +716,13 @@ class AIDescriber:
         if not images:
             raise ValueError("No valid keyframes to analyze")
 
-        # Build prompt
-        # We can reuse the LLaVA prompt builder but remove the <image> tag
-        # as Ollama's API handles image insertion
+        # Build prompt - remove <image> tag as Ollama handles it
         prompt = self._build_llava_prompt(theme, description_length)
         prompt = prompt.replace("<image>", "").strip()
 
-        # Adjust prompt for stitched images if needed
+        # Adjust prompt for stitched images
         if self._is_single_image_model() and len(keyframes) > 1:
-            prompt = f"This image shows multiple keyframes from a video scene arranged horizontally. {prompt}"
+            prompt = f"Multiple frames stitched. {prompt}"
 
         payload = {
             "model": ollama_model,
@@ -720,34 +735,43 @@ class AIDescriber:
             },
         }
 
+        # Log request details
+        logger.info(
+            f"API Request - Provider: ollama, Model: {ollama_model}, "
+            f"Theme: {theme or 'None'}, Length: {description_length}, "
+            f"Images: {len(images)}, Prompt: {len(prompt)} chars"
+        )
+        logger.debug(f"Full prompt: {prompt}")
+
         try:
             response = requests.post(f"{ollama_host}/api/generate", json=payload, timeout=600)
             response.raise_for_status()
+            
+            logger.debug(f"Ollama API response status: {response.status_code}")
+            
             description = response.json().get("response", "").strip()
 
             if not description:
                 logger.warning("Ollama returned empty description")
                 return ""
 
+            logger.info(f"Successfully generated description ({len(description)} chars)")
             return description
 
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 400:
                 logger.error(
                     f"Ollama 400 Bad Request for model {ollama_model}. "
-                    f"Possible issues: model doesn't support {len(images)} images, "
-                    f"image format invalid, or model not fully loaded."
-                )
-                logger.debug(
-                    f"Request details: model={ollama_model}, images_count={len(images)}, "
-                    f"prompt_length={len(prompt)}"
+                    f"Model may not support {len(images)} images or not fully loaded."
                 )
             else:
                 logger.error(f"Ollama HTTP error {e.response.status_code}: {e}")
             return ""
+        except requests.exceptions.Timeout:
+            logger.error(f"Ollama API timeout")
+            return ""
         except requests.RequestException as e:
             logger.error(f"Ollama API error: {e}")
-            # Don't raise, just return empty so flow continues (similar to other local failures)
             return ""
 
     def _describe_with_llava(
@@ -920,7 +944,14 @@ class AIDescriber:
 
             # Build LLaVA-specific prompt
             prompt = self._build_llava_prompt(theme, description_length)
-            logger.debug(f"LLaVA prompt: {prompt}")
+            
+            # Log request details
+            logger.info(
+                f"API Request - Provider: llava, Model: {model_id}, "
+                f"Theme: {theme or 'None'}, Length: {description_length}, "
+                f"Images: 1 (stitched), Prompt: {len(prompt)} chars"
+            )
+            logger.debug(f"Full prompt: {prompt}")
 
             # Prepare inputs
             inputs = processor(images=images[0], text=prompt, return_tensors="pt").to(model.device)
@@ -1044,7 +1075,7 @@ class AIDescriber:
                 logger.warning(f"Error during final cleanup: {cleanup_error}")
 
     def _build_prompt(self, theme: Optional[str] = None, description_length: str = "medium") -> str:
-        """Build prompt for AI description generation.
+        """Build concise prompt for AI description generation.
 
         Args:
             theme: Optional theme to guide description
@@ -1054,68 +1085,25 @@ class AIDescriber:
             Formatted prompt string
         """
         length_instructions = {
-            "short": "Provide a very brief description (5-10 words).",
-            "medium": "Provide a concise description (15-30 words).",
-            "detailed": "Provide a detailed description (40-60 words).",
+            "short": "5-10 words",
+            "medium": "15-30 words",
+            "detailed": "40-60 words",
         }
 
-        base_prompt = f"""You are a professional video editor's assistant. Analyze these CONSECUTIVE KEYFRAMES from a video scene and provide an ACCURATE, SPECIFIC description.
+        # Concise, focused prompt optimized for smaller models
+        base_prompt = f"""Describe these video keyframes in {length_instructions.get(description_length, length_instructions['medium'])}.
 
-IMPORTANT: These are multiple keyframes showing progression over time. Describe what happens across all frames, not just one.
-
-{length_instructions.get(description_length, length_instructions['medium'])}
-
-CRITICAL INSTRUCTIONS:
-- Be SPECIFIC and CONCRETE (not generic like "person working" or "using tools")
-- Describe WHAT specifically is happening (not general activities)
-- Include specific objects, tools, actions, and results visible
-- Describe the SEQUENCE of actions and progression across frames
-- Note colors, positions, materials when relevant
-- Avoid vague descriptions - be precise
-- Explain what changes or progresses from frame to frame
-
-Focus on:
-1. Specific objects, tools, or equipment (brand, type, color if visible)
-2. Specific actions being performed (verb + object)
-3. Location, setting, and spatial layout
-4. Visible results or changes between frames (progression of action)
-5. People's positioning and hand/body movements throughout the sequence
-
-Provide a clear, factual, specific description of the action/progression suitable for video editing."""
+Be specific: name objects, tools, actions, materials, and colors. Describe the sequence across frames."""
 
         if theme:
-            base_prompt += f"""
-
-CONTEXT: This video is about: "{theme}"
-Use this context to interpret what you're seeing. Focus on details relevant to the theme.
-For DIY/builds: What is being built, what tools are used, what is the progression?
-For cooking: What ingredients, techniques, equipment, and cooking stages?
-For tutorials: What is being demonstrated, what steps are visible?
-For reviews: What product features or qualities are shown?"""
-
-        # Log the prompt construction details at DEBUG level
-        logger.debug(f"=== PROMPT CONSTRUCTION ===")
-        logger.debug(f"Theme provided to _build_prompt: {theme}")
-        logger.debug(f"Description length: {description_length}")
-        logger.debug(f"Theme is being added to prompt: {theme is not None}")
-        if theme:
-            logger.debug(f"Theme text exactly: '{theme}'")
-        logger.debug(f"Prompt length: {len(base_prompt)} characters")
-        logger.debug(f"Full prompt being built:")
-        logger.debug(f"--- START BUILT PROMPT ---")
-        logger.debug(base_prompt)
-        logger.debug(f"--- END BUILT PROMPT ---")
-        logger.debug(f"=== END PROMPT CONSTRUCTION ===")
+            base_prompt += f'\n\nContext: {theme} video. Focus on relevant details.'
 
         return base_prompt
 
     def _build_llava_prompt(
         self, theme: Optional[str] = None, description_length: str = "medium"
     ) -> str:
-        """Build a simple, direct prompt for LLaVA (7B model needs simpler instructions).
-
-        LLaVA requires explicit <image> token in the text prompt.
-        Use very simple, direct instructions for the 7B model.
+        """Build simple, direct prompt for LLaVA (optimized for 7B models).
 
         Args:
             theme: Optional theme to guide description
@@ -1124,18 +1112,19 @@ For reviews: What product features or qualities are shown?"""
         Returns:
             Simple prompt string for LLaVA (includes <image> token)
         """
-        length_map = {"short": "brief", "medium": "concise", "detailed": "detailed"}
-        length_text = length_map.get(description_length, "concise")
+        # Include explicit word count guidance for the model
+        length_map = {
+            "short": "in 5-10 words",
+            "medium": "in 15-30 words",
+            "detailed": "in 40-60 words"
+        }
+        length_text = length_map.get(description_length, "in 15-30 words")
 
-        # IMPORTANT: Must include <image> token for LLaVA processor to recognize image
-        # Use VERY simple instructions for 7B model
-        # NOTE: The image may show stacked/stitched keyframes - instruct model to describe the action/content, not the format
+        # Simple prompt optimized for 7B models - <image> token required
         if theme:
-            # Simple theme-based prompt - focus on action, not image format
-            prompt = f"<image> Describe what is happening in this {theme} scene in a {length_text} sentence. Focus on the action, objects, and what is specifically occurring. Do NOT describe the image layout or that you are viewing multiple frames - just describe the scene content and action."
+            prompt = f"<image> Describe what's happening in this {theme} scene {length_text}. Name specific objects and actions."
         else:
-            # Simple generic prompt - focus on action, not image format
-            prompt = f"<image> Describe what is happening in this video scene in a {length_text} sentence. Focus on the action, objects, and what is occurring. Do NOT describe the image layout or format - just describe the scene content and action."
+            prompt = f"<image> Describe what's happening in this scene {length_text}. Name specific objects and actions."
 
         return prompt
 
