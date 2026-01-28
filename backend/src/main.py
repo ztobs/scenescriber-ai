@@ -25,6 +25,7 @@ from .scene_detector_simple import SimpleSceneDetector
 from .ai_describer import AIDescriber
 from .srt_exporter import SRTExporter
 from .filename_formatter import FilenameFormatter
+from .cleanup_utils import cleanup_manager
 
 # Load environment variables
 load_dotenv()
@@ -373,6 +374,12 @@ async def upload_video(file: UploadFile = File(...)):
         Upload information including file path
     """
     logger.info(f"Uploading video: {file.filename}")
+
+    # Perform cleanup before upload if auto cleanup is enabled
+    if cleanup_manager.should_cleanup():
+        logger.info("Performing automatic cleanup before upload...")
+        cleanup_results = cleanup_manager.perform_cleanup()
+        logger.info(f"Cleanup completed: {cleanup_results.get('total_files_removed', 0)} files removed")
 
     # Validate file type
     allowed_extensions = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
@@ -816,6 +823,55 @@ async def update_scene_description(
             }
 
     raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
+
+
+@app.get("/api/cleanup/stats")
+async def get_cleanup_stats():
+    """Get cleanup statistics and directory information.
+    
+    Returns:
+        Dictionary with cleanup configuration and directory statistics
+    """
+    stats = cleanup_manager.get_directory_stats()
+    
+    return {
+        "cleanup_config": {
+            "retention_days": cleanup_manager.retention_days,
+            "enable_auto_cleanup": cleanup_manager.enable_auto_cleanup,
+            "cleanup_directories": cleanup_manager.cleanup_directories,
+            "cleanup_log_files": cleanup_manager.cleanup_log_files,
+        },
+        "directory_stats": stats,
+        "should_cleanup": cleanup_manager.should_cleanup(),
+    }
+
+
+@app.post("/api/cleanup/perform")
+async def perform_cleanup():
+    """Manually trigger cleanup operation.
+    
+    Returns:
+        Cleanup results
+    """
+    logger.info("Manual cleanup triggered via API")
+    results = cleanup_manager.perform_cleanup()
+    return results
+
+
+@app.post("/api/cleanup/prepare-upload")
+async def prepare_for_upload():
+    """Prepare for new upload by performing cleanup.
+    
+    This endpoint should be called before uploading a new video.
+    It performs the same cleanup as the automatic cleanup but returns
+    results immediately.
+    
+    Returns:
+        Cleanup results
+    """
+    logger.info("Preparing for new upload - performing cleanup")
+    results = cleanup_manager.perform_cleanup()
+    return results
 
 
 if __name__ == "__main__":
