@@ -46,10 +46,23 @@ export interface JobStatus {
   has_scenes: boolean;
 }
 
+export interface ProcessingMetadata {
+  video_path?: string;
+  video_name?: string;
+  sensitivity?: string;
+  detail_level?: string;
+  model_provider?: string;
+  model_name?: string;
+  segment_duration?: number;
+  processing_time?: number;
+  speed?: number;
+}
+
 export interface ScenesResponse {
   job_id: string;
   scenes: Scene[];
   total_scenes: number;
+  metadata?: ProcessingMetadata;
 }
 
 export interface AIProvider {
@@ -94,6 +107,7 @@ export interface AppState {
   error: string | null;
   config: AppConfig | null;
   filenameFormat: string;       // Filename format template with placeholders
+  processingMetadata: ProcessingMetadata | null; // Processing metadata from analysis
 }
 
 export interface FilenameFormatInfo {

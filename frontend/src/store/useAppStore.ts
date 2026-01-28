@@ -22,6 +22,7 @@ const initialState: Omit<AppState, 'setState' | 'reset'> = {
   error: null,
   config: null,
   filenameFormat: '[videoname]_[timestamp]', // Default format
+  processingMetadata: null, // Add processing metadata field
 };
 
 interface AppStore extends AppState {
@@ -193,6 +194,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           const scenesResponse = await videoApi.getScenes(state.jobId!);
           set({
             scenes: scenesResponse.scenes,
+            processingMetadata: scenesResponse.metadata || null,
             currentStep: 'review',
             loading: false,
           });

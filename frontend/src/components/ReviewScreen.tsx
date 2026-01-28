@@ -39,7 +39,7 @@ import { API_BASE_URL } from '../utils/api';
 import { FilenameFormatBuilder } from './FilenameFormatBuilder';
 
 export const ReviewScreen: React.FC = () => {
-  const { scenes, updateSceneDescription, exportSrt, loading, setState, uploadedFile, filenameFormat } = useAppStore();
+  const { scenes, updateSceneDescription, exportSrt, loading, setState, uploadedFile, filenameFormat, processingMetadata } = useAppStore();
   const [editingSceneId, setEditingSceneId] = useState<number | null>(null);
   const [editDescription, setEditDescription] = useState('');
   const [selectedSceneIndex, setSelectedSceneIndex] = useState(0);
@@ -129,7 +129,18 @@ export const ReviewScreen: React.FC = () => {
 
       <Alert severity="info" sx={{ mb: 3 }}>
         <Typography variant="body2">
-          Found {scenes.length} scenes. You can edit descriptions before exporting.
+          Found {scenes.length} scenes.
+          {processingMetadata && processingMetadata.segment_duration && processingMetadata.processing_time && (
+            <>
+              {' '}Processed {processingMetadata.segment_duration.toFixed(1)} seconds clip in {processingMetadata.processing_time.toFixed(1)} seconds
+              {processingMetadata.speed && processingMetadata.speed > 0 && (
+                <> (speed: {processingMetadata.speed.toFixed(1)}x)</>
+              )}.
+            </>
+          )}
+        </Typography>
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          You can edit descriptions before exporting.
           SRT files can be imported into DaVinci Resolve, Premiere Pro, and other video editors.
         </Typography>
       </Alert>

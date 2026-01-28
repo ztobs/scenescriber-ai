@@ -686,7 +686,7 @@ async def get_scenes(job_id: str):
         job_id: Job ID returned from analyze endpoint
 
     Returns:
-        List of scenes with descriptions and timing
+        List of scenes with descriptions and timing, plus processing metadata
     """
     if job_id not in processing_jobs:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -698,7 +698,27 @@ async def get_scenes(job_id: str):
             status_code=400, detail=f"Job not completed. Current status: {job['status']}"
         )
 
-    return {"job_id": job_id, "scenes": job["scenes"], "total_scenes": len(job["scenes"])}
+    # Get metadata from job
+    job_metadata = job.get("metadata", {})
+    
+    # Calculate speed if we have segment_duration and processing_time
+    speed = 0.0
+    if job_metadata.get("segment_duration") and job_metadata.get("processing_time"):
+        if job_metadata["processing_time"] > 0:
+            speed = job_metadata["segment_duration"] / job_metadata["processing_time"]
+    
+    # Add speed to metadata
+    metadata_with_speed = {
+        **job_metadata,
+        "speed": round(speed, 2) if speed > 0 else 0.0,
+    }
+    
+    return {
+        "job_id": job_id, 
+        "scenes": job["scenes"], 
+        "total_scenes": len(job["scenes"]),
+        "metadata": metadata_with_speed,
+    }
 
 
 @app.get("/api/export/srt/{job_id}")
